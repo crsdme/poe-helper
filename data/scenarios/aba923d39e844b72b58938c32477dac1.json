@@ -1,0 +1,40 @@
+{
+  "id": "aba923d39e844b72b58938c32477dac1",
+  "name": "Rings · Basic currency",
+  "item_type": "Ring",
+  "craft_type": "basic_currency",
+  "steps": [
+    {
+      "id": "c0b751991d",
+      "action_id": "alteration",
+      "condition": {
+        "kind": "missing_mod",
+        "mods": [
+          {
+            "mod_type_id": "prefix:IncreasedLife",
+            "generation": "prefix",
+            "name": "+# to maximum Life",
+            "tier": 1,
+            "value_min": 100,
+            "value_max": 114,
+            "weight": 1000,
+            "need": 1
+          },
+          {
+            "mod_type_id": "suffix:LightRadiusAndAccuracyPercent",
+            "generation": "suffix",
+            "name": "#% increased Light Radius / #% increased Global Accuracy Rating",
+            "tier": 1,
+            "value_min": 15,
+            "value_max": 15,
+            "weight": 1000,
+            "need": 1
+          }
+        ],
+        "required_weight": 1
+      },
+      "augment_open": "any"
+    }
+  ],
+  "created_at": "2026-08-16T10:48:18+00:00"
+}

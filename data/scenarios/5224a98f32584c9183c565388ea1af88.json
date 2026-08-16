@@ -1,0 +1,40 @@
+{
+  "id": "5224a98f32584c9183c565388ea1af88",
+  "name": "VERMILLIOM DOLLARS",
+  "item_type": "Ring",
+  "craft_type": "basic_currency",
+  "steps": [
+    {
+      "id": "4b6db80657",
+      "action_id": "alteration",
+      "condition": {
+        "kind": "missing_mod",
+        "mods": [
+          {
+            "mod_type_id": "suffix:LightRadiusAndAccuracyPercent",
+            "generation": "suffix",
+            "name": "#% increased Light Radius / #% increased Global Accuracy Rating",
+            "tier": 1,
+            "value_min": 15,
+            "value_max": 15,
+            "weight": 1000,
+            "need": 1
+          },
+          {
+            "mod_type_id": "prefix:IncreasedLife",
+            "generation": "prefix",
+            "name": "+# to maximum Life",
+            "tier": 1,
+            "value_min": 100,
+            "value_max": 114,
+            "weight": 1000,
+            "need": 1
+          }
+        ],
+        "required_weight": 1
+      },
+      "augment_open": "any"
+    }
+  ],
+  "created_at": "2026-08-16T09:36:41+00:00"
+}

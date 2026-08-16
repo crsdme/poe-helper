@@ -1,0 +1,32 @@
+# Python
+.venv/
+venv/
+env/
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.Python
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Local runtime data — overlays, hotkeys, logs, catalog cache, scenarios
+data/
+
+# PyInstaller
+build/
+dist/
+*.spec.bak
+
+# Editors / OS
+.idea/
+.vscode/
+*.swp
+*~
+Thumbs.db
+Desktop.ini
+.DS_Store
+
+# Logs dumped next to the app
+*.log

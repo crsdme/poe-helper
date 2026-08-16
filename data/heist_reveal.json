@@ -1,0 +1,46 @@
+{
+  "hotkey": "f11",
+  "exit_hotkey": "f12",
+  "save_logs": true,
+  "logs_dir": "heist_logs",
+  "click_delay_sec": 0.1,
+  "open_settle_sec": 0.35,
+  "reveal_settle_sec": 0.28,
+  "between_blueprints_sec": 0.15,
+  "max_reveals_per_blueprint": 8,
+  "min_area_frac": 0.045,
+  "min_side_frac": 0.16,
+  "ui_points": {
+    "blueprint_slot": [
+      960,
+      922
+    ]
+  },
+  "map_region": {
+    "x": 300,
+    "y": 70,
+    "w": 1000,
+    "h": 640
+  },
+  "inventory_grid": {
+    "x": 1262,
+    "y": 578,
+    "w": 224,
+    "h": 283,
+    "cols": 4,
+    "rows": 5
+  },
+  "inventory_region": {
+    "left": 1262,
+    "top": 578,
+    "width": 224,
+    "height": 283
+  },
+  "max_blueprints": 20,
+  "loop_blueprints": true,
+  "skip_assigned_slots": true,
+  "confirm_plans_after_assign": true,
+  "min_area_px": 18000,
+  "min_side_px": 120,
+  "take_settle_sec": 0.35
+}

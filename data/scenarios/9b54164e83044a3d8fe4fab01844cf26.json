@@ -1,0 +1,90 @@
+{
+  "id": "9b54164e83044a3d8fe4fab01844cf26",
+  "name": "Rings · Basic currency",
+  "item_type": "Ring",
+  "craft_type": "basic_currency",
+  "steps": [
+    {
+      "id": "a11534a4ed",
+      "action_id": "alteration",
+      "condition": {
+        "kind": "missing_mod",
+        "mods": [
+          {
+            "mod_type_id": "prefix:IncreasedLife",
+            "generation": "prefix",
+            "name": "+# to maximum Life",
+            "tier": null,
+            "value_min": null,
+            "value_max": null,
+            "weight": null,
+            "need": 1
+          },
+          {
+            "mod_type_id": "suffix:ChaosResistance",
+            "generation": "suffix",
+            "name": "+#% to Chaos Resistance",
+            "tier": null,
+            "value_min": null,
+            "value_max": null,
+            "weight": null,
+            "need": 1,
+            "group": "1",
+            "count": 1
+          },
+          {
+            "mod_type_id": "suffix:ColdResistance",
+            "generation": "suffix",
+            "name": "+#% to Cold Resistance",
+            "tier": null,
+            "value_min": null,
+            "value_max": null,
+            "weight": null,
+            "need": 1,
+            "group": "1",
+            "count": 1
+          },
+          {
+            "mod_type_id": "suffix:FireResistance",
+            "generation": "suffix",
+            "name": "+#% to Fire Resistance",
+            "tier": null,
+            "value_min": null,
+            "value_max": null,
+            "weight": null,
+            "need": 1,
+            "group": "1",
+            "count": 1
+          },
+          {
+            "mod_type_id": "suffix:LightningResistance",
+            "generation": "suffix",
+            "name": "+#% to Lightning Resistance",
+            "tier": null,
+            "value_min": null,
+            "value_max": null,
+            "weight": null,
+            "need": 1,
+            "group": "1",
+            "count": 1
+          },
+          {
+            "mod_type_id": "suffix:AllResistances",
+            "generation": "suffix",
+            "name": "+#% to all Elemental Resistances",
+            "tier": null,
+            "value_min": null,
+            "value_max": null,
+            "weight": null,
+            "need": 1,
+            "group": "1",
+            "count": 1
+          }
+        ],
+        "required_weight": 2
+      },
+      "augment_open": "any"
+    }
+  ],
+  "created_at": "2026-08-16T10:08:12+00:00"
+}

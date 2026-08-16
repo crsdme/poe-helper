@@ -1,0 +1,101 @@
+{
+  "id": "1e1eba1712974fb8b3d778d83d08c997",
+  "name": "Rings · Basic currency TEST",
+  "item_type": "Ring",
+  "craft_type": "basic_currency",
+  "steps": [
+    {
+      "id": "056d4e51a5",
+      "action_id": "alteration",
+      "condition": {
+        "kind": "missing_mod",
+        "mods": [
+          {
+            "mod_type_id": "prefix:IncreasedLife",
+            "generation": "prefix",
+            "name": "+# to maximum Life",
+            "tier": null,
+            "value_min": null,
+            "value_max": null,
+            "weight": null,
+            "need": 1
+          },
+          {
+            "mod_type_id": "suffix:FireResistance",
+            "generation": "suffix",
+            "name": "+#% to Fire Resistance",
+            "tier": null,
+            "value_min": null,
+            "value_max": null,
+            "weight": null,
+            "need": 1
+          },
+          {
+            "mod_type_id": "suffix:ColdResistance",
+            "generation": "suffix",
+            "name": "+#% to Cold Resistance",
+            "tier": null,
+            "value_min": null,
+            "value_max": null,
+            "weight": null,
+            "need": 1
+          },
+          {
+            "mod_type_id": "suffix:LightningResistance",
+            "generation": "suffix",
+            "name": "+#% to Lightning Resistance",
+            "tier": null,
+            "value_min": null,
+            "value_max": null,
+            "weight": null,
+            "need": 1
+          }
+        ],
+        "required_weight": 2
+      },
+      "augment_open": "any"
+    },
+    {
+      "id": "6b328b319e",
+      "action_id": "regal",
+      "condition": {
+        "kind": "missing_mod",
+        "mods": [
+          {
+            "mod_type_id": "suffix:ColdResistance",
+            "generation": "suffix",
+            "name": "+#% to Cold Resistance",
+            "tier": null,
+            "value_min": null,
+            "value_max": null,
+            "weight": null,
+            "need": 1
+          },
+          {
+            "mod_type_id": "suffix:LightningResistance",
+            "generation": "suffix",
+            "name": "+#% to Lightning Resistance",
+            "tier": null,
+            "value_min": null,
+            "value_max": null,
+            "weight": null,
+            "need": 1
+          },
+          {
+            "mod_type_id": "prefix:IncreasedLife",
+            "generation": "prefix",
+            "name": "+# to maximum Life",
+            "tier": null,
+            "value_min": null,
+            "value_max": null,
+            "weight": null,
+            "need": 1
+          }
+        ],
+        "required_weight": 3
+      },
+      "augment_open": "off"
+    }
+  ],
+  "created_at": "2026-08-16T09:07:02+00:00"
+}
