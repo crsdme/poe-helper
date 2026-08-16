@@ -42,5 +42,9 @@
   "confirm_plans_after_assign": true,
   "min_area_px": 18000,
   "min_side_px": 120,
-  "take_settle_sec": 0.35
+  "take_settle_sec": 0.35,
+  "max_area_frac": 0.22,
+  "blink_samples": 4,
+  "blink_sample_sec": 0.11,
+  "eye_match_threshold": 0.58
 }

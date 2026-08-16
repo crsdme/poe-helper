@@ -19,6 +19,40 @@ def icon_path(name: str, folder: str = "items") -> Path | None:
     return None
 
 
+def fit_icon(image, size: int, *, background: str | None = None, sharpen: bool = True):
+    """Crop transparent padding, then LANCZOS-resize so small UI icons stay sharp."""
+    from PIL import Image, ImageColor, ImageFilter
+
+    src = image.convert("RGBA")
+    bbox = src.split()[-1].getbbox()
+    if bbox:
+        pad = max(2, int(min(src.size) * 0.03))
+        left, top, right, bottom = bbox
+        src = src.crop(
+            (
+                max(0, left - pad),
+                max(0, top - pad),
+                min(src.width, right + pad),
+                min(src.height, bottom + pad),
+            )
+        )
+    side = max(src.size)
+    canvas = Image.new("RGBA", (side, side), (0, 0, 0, 0))
+    canvas.paste(src, ((side - src.width) // 2, (side - src.height) // 2), src)
+    out = canvas
+    while min(out.size) // 2 >= size:
+        out = out.resize((out.width // 2, out.height // 2), Image.Resampling.LANCZOS)
+    if out.size != (size, size):
+        out = out.resize((size, size), Image.Resampling.LANCZOS)
+    if sharpen and size <= 128:
+        amount = 180 if size <= 48 else 130
+        out = out.filter(ImageFilter.UnsharpMask(radius=1.15, percent=amount, threshold=1))
+    if background:
+        plate = Image.new("RGBA", out.size, ImageColor.getrgb(background) + (255,))
+        out = Image.alpha_composite(plate, out)
+    return out
+
+
 def _ctk_image(image, size: int):
     import customtkinter as ctk
 

@@ -38,6 +38,7 @@ from app.theme import (
     TEXT,
     TEXT_MUTED,
 )
+from app.item_icons import fit_icon
 from app.paths import app_icon_ico, app_icon_png
 from app.widgets.select import Select
 from app.widgets.toast import ToastHost
@@ -90,21 +91,88 @@ class MainWindow(ctk.CTk):
 
     def _apply_app_icon(self) -> None:
         ico = app_icon_ico()
-        if not ico.is_file():
-            return
+        png = app_icon_png()
+        if ico.is_file():
+            try:
+                self.iconbitmap(str(ico))
+            except Exception:
+                pass
+        if png.is_file():
+            try:
+                from PIL import Image, ImageTk
+
+                photo = ImageTk.PhotoImage(fit_icon(Image.open(png), 256, sharpen=False))
+                self._icon_photo = photo
+                self.iconphoto(True, photo)
+            except Exception:
+                pass
         try:
-            self.iconbitmap(str(ico))
+            self._apply_windows_icons()
         except Exception:
             pass
+
+    def _apply_windows_icons(self) -> None:
+        import ctypes
+        import sys
+
+        if sys.platform != "win32":
+            return
+        ico = app_icon_ico()
+        if not ico.is_file():
+            return
+        user32 = ctypes.windll.user32
+        IMAGE_ICON = 1
+        LR_LOADFROMFILE = 0x00000010
+        WM_SETICON = 0x0080
+        GWL_STYLE = -16
+        WS_CAPTION = 0x00C00000
+        user32.LoadImageW.argtypes = [
+            ctypes.c_void_p,
+            ctypes.c_wchar_p,
+            ctypes.c_uint,
+            ctypes.c_int,
+            ctypes.c_int,
+            ctypes.c_uint,
+        ]
+        user32.LoadImageW.restype = ctypes.c_void_p
+        hwnd = int(self.winfo_id())
+        for _ in range(8):
+            style = user32.GetWindowLongW(hwnd, GWL_STYLE)
+            if style & WS_CAPTION:
+                break
+            parent = user32.GetParent(hwnd)
+            if not parent or parent == hwnd:
+                break
+            hwnd = parent
+        path = str(ico)
+        cx_small = max(user32.GetSystemMetrics(49) or 16, 32)
+        self._hicon_small = user32.LoadImageW(None, path, IMAGE_ICON, cx_small, cx_small, LR_LOADFROMFILE)
+        self._hicon_big = user32.LoadImageW(None, path, IMAGE_ICON, 256, 256, LR_LOADFROMFILE)
+        if self._hicon_small:
+            user32.SendMessageW(hwnd, WM_SETICON, 0, self._hicon_small)
+        if self._hicon_big:
+            user32.SendMessageW(hwnd, WM_SETICON, 1, self._hicon_big)
 
     def _brand_mark(self, parent):
         png = app_icon_png()
         if png.is_file():
             from PIL import Image
 
-            src = Image.open(png).convert("RGBA")
-            self._brand_icon = ctk.CTkImage(light_image=src, dark_image=src, size=(36, 36))
-            return ctk.CTkLabel(parent, image=self._brand_icon, text="", width=36, height=36)
+            logical = 48
+            try:
+                pixels = max(logical, round(logical * float(self._get_widget_scaling())))
+            except Exception:
+                pixels = logical
+            src = fit_icon(Image.open(png), pixels, background=HEADER, sharpen=True)
+            self._brand_icon = ctk.CTkImage(light_image=src, dark_image=src, size=(logical, logical))
+            return ctk.CTkLabel(
+                parent,
+                image=self._brand_icon,
+                text="",
+                width=logical,
+                height=logical,
+                fg_color="transparent",
+            )
         mark = ctk.CTkFrame(
             parent,
             width=36,
