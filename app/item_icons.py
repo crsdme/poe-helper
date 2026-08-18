@@ -7,7 +7,6 @@ from app.paths import BUNDLE, ROOT
 ICON_SIZE = 48
 HOME_ICON_SIZE = 56
 ACTION_ICON_SIZE = 22
-_CACHE: dict[str, object] = {}
 
 
 def icon_path(name: str, folder: str = "items") -> Path | None:
@@ -19,104 +18,16 @@ def icon_path(name: str, folder: str = "items") -> Path | None:
     return None
 
 
-def fit_icon(image, size: int, *, background: str | None = None, sharpen: bool = True):
-    """Crop transparent padding, then LANCZOS-resize so small UI icons stay sharp."""
-    from PIL import Image, ImageColor, ImageFilter
-
-    src = image.convert("RGBA")
-    bbox = src.split()[-1].getbbox()
-    if bbox:
-        pad = max(2, int(min(src.size) * 0.03))
-        left, top, right, bottom = bbox
-        src = src.crop(
-            (
-                max(0, left - pad),
-                max(0, top - pad),
-                min(src.width, right + pad),
-                min(src.height, bottom + pad),
-            )
-        )
-    side = max(src.size)
-    canvas = Image.new("RGBA", (side, side), (0, 0, 0, 0))
-    canvas.paste(src, ((side - src.width) // 2, (side - src.height) // 2), src)
-    out = canvas
-    while min(out.size) // 2 >= size:
-        out = out.resize((out.width // 2, out.height // 2), Image.Resampling.LANCZOS)
-    if out.size != (size, size):
-        out = out.resize((size, size), Image.Resampling.LANCZOS)
-    if sharpen and size <= 128:
-        amount = 180 if size <= 48 else 130
-        out = out.filter(ImageFilter.UnsharpMask(radius=1.15, percent=amount, threshold=1))
-    if background:
-        plate = Image.new("RGBA", out.size, ImageColor.getrgb(background) + (255,))
-        out = Image.alpha_composite(plate, out)
-    return out
-
-
-def _ctk_image(image, size: int):
-    import customtkinter as ctk
-
-    return ctk.CTkImage(light_image=image, dark_image=image, size=(size, size))
-
-
-def _fallback_orb(name: str, size: int):
-    from PIL import Image, ImageDraw, ImageFont
-
-    canvas = max(size * 4, 64)
-    img = Image.new("RGBA", (canvas, canvas), (0, 0, 0, 0))
-    draw = ImageDraw.Draw(img)
-    hue = sum(ord(ch) for ch in name) % 360
-    color = _hsl(hue, 0.42, 0.48)
-    dark = _hsl(hue, 0.50, 0.22)
-    pad = canvas * 0.12
-    draw.ellipse((pad, pad, canvas - pad, canvas - pad), fill=dark, outline=color, width=max(2, canvas // 18))
-    inner = canvas * 0.22
-    draw.ellipse((inner, inner, canvas - inner, canvas - inner), outline=color, width=max(2, canvas // 24))
-    letter = (name[:1] or "?").upper()
-    try:
-        font = ImageFont.truetype("segoeui.ttf", int(canvas * 0.38))
-    except OSError:
-        font = ImageFont.load_default()
-    box = draw.textbbox((0, 0), letter, font=font)
-    tw, th = box[2] - box[0], box[3] - box[1]
-    draw.text(
-        ((canvas - tw) / 2 - box[0], (canvas - th) / 2 - box[1] - canvas * 0.02),
-        letter,
-        fill=color,
-        font=font,
-    )
-    return img.resize((size, size), Image.Resampling.LANCZOS)
-
-
-def _hsl(hue: int, sat: float, light: float) -> tuple[int, int, int, int]:
-    import colorsys
-
-    r, g, b = colorsys.hls_to_rgb(hue / 360, light, sat)
-    return int(r * 255), int(g * 255), int(b * 255), 255
-
-
-def tile_image(name: str, folder: str = "items", size: int = ICON_SIZE):
-    key = f"{folder}/{name}:{size}"
-    if key in _CACHE:
-        return _CACHE[key]
+def asset_rel(name: str, folder: str = "items") -> str | None:
     path = icon_path(name, folder)
-    from PIL import Image
-
     if path is None:
-        if folder != "currency":
-            _CACHE[key] = None
-            return None
-        image = _fallback_orb(name, size)
-    else:
-        image = Image.open(path).convert("RGBA")
-    ctk_image = _ctk_image(image, size)
-    _CACHE[key] = ctk_image
-    return ctk_image
+        return None
+    return f"../assets/{folder}/{path.name}"
 
 
-def action_image(action_id: str, size: int = ACTION_ICON_SIZE):
+def action_icon(action_id: str) -> str | None:
     if not action_id:
         return None
     if action_id.startswith("harvest"):
-        return tile_image("harvest", folder="craft", size=size)
-    return tile_image(action_id, folder="currency", size=size)
+        return asset_rel("harvest", "craft")
+    return asset_rel(action_id, "currency")

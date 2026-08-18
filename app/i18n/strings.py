@@ -178,6 +178,14 @@ STRINGS: dict[str, dict[str, str]] = {
         "en": "Search past crafts and open a session",
         "ru": "Поиск по прошлым крафтам и просмотр сессии",
     },
+    "home.stats": {
+        "en": "Statistics",
+        "ru": "Статистика",
+    },
+    "home.stats_sub": {
+        "en": "Average currency spent per craft",
+        "ru": "Средний расход валюты на один крафт",
+    },
     "home.heist": {
         "en": "Blueprint Confirm",
         "ru": "Blueprint Confirm",
@@ -412,8 +420,14 @@ STRINGS: dict[str, dict[str, str]] = {
         "ru": "Каждый запуск сохраняется отдельно. В лог пишется скопированный предмет (Ctrl+C из PoE), чтобы видеть как он изменился и проверить, что программа читает его правильно.",
     },
     "logs.search": {
-        "en": "Search crafts and log lines...",
-        "ru": "Поиск по крафтам и строкам лога...",
+        "en": "Find in this run…",
+        "ru": "Найти в этом запуске…",
+        "de": "In diesem Lauf suchen…",
+        "fr": "Chercher dans cette session…",
+        "es": "Buscar en esta sesión…",
+        "pt": "Procurar nesta sessão…",
+        "zh": "在本次记录中查找…",
+        "ko": "이 실행에서 검색…",
     },
     "logs.empty": {
         "en": "No crafts logged yet. Run a craft with logs enabled in Settings.",
@@ -439,6 +453,16 @@ STRINGS: dict[str, dict[str, str]] = {
         "en": "No matching lines in this craft.",
         "ru": "В этом крафте нет совпадений.",
     },
+    "logs.hits": {
+        "en": "{n} matches",
+        "ru": "{n} совпадений",
+        "de": "{n} Treffer",
+        "fr": "{n} correspondances",
+        "es": "{n} coincidencias",
+        "pt": "{n} correspondências",
+        "zh": "{n} 处匹配",
+        "ko": "일치 {n}개",
+    },
     "logs.status_running": {
         "en": "running",
         "ru": "идёт",
@@ -454,6 +478,50 @@ STRINGS: dict[str, dict[str, str]] = {
     "logs.status_error": {
         "en": "error",
         "ru": "ошибка",
+    },
+    "stats.title": {
+        "en": "Statistics",
+        "ru": "Статистика",
+    },
+    "stats.hint": {
+        "en": "A craft is a finished item that used currency. Already-good skips and items you stop mid-roll do not count, but their spend still adds to the total. Average is cost per finished craft. Condition mods show which nodes landed on a hit.",
+        "ru": "Крафт — это законченный предмет, на который ушла валюта. Уже готовые вещи и остановленный посередине ролл не считаются, но расход всё равно идёт в сумму. Среднее — цена одного готового предмета. Моды условия показывают, какие ноды выпали на HIT.",
+    },
+    "stats.empty": {
+        "en": "No craft logs yet. Run a craft with logs enabled.",
+        "ru": "Логов ещё нет. Запусти крафт — запись включается в настройках.",
+    },
+    "stats.all": {
+        "en": "All scenarios",
+        "ru": "Все сценарии",
+    },
+    "stats.summary": {
+        "en": "{crafts} crafts · {sessions} sessions",
+        "ru": "{crafts} крафтов · {sessions} сессий",
+    },
+    "stats.avg": {
+        "en": "~{n} / craft",
+        "ru": "~{n} / крафт",
+    },
+    "stats.total": {
+        "en": "{n} total",
+        "ru": "всего {n}",
+    },
+    "stats.unnamed": {
+        "en": "Unnamed",
+        "ru": "Без названия",
+    },
+    "stats.mods": {
+        "en": "Condition mods",
+        "ru": "Моды из условия",
+    },
+    "stats.mod_pct": {
+        "en": "{n}% of hits",
+        "ru": "{n}% попаданий",
+    },
+    "stats.mod_total": {
+        "en": "{n} hits",
+        "ru": "{n} раз",
     },
     "logs.status_paused": {
         "en": "paused",
@@ -690,8 +758,8 @@ STRINGS: dict[str, dict[str, str]] = {
         "ko": "클릭 위치가 없습니다",
     },
     "run.need_augment": {
-        "en": "Map Orb of Alteration in Settings — Augment is applied with Alt while Alteration is on the cursor.",
-        "ru": "Задай сферу перемен в настройках. Augment жмётся через Alt, пока сфера перемен на курсоре.",
+        "en": "Map Orb of Augmentation in Settings — it is used when a prefix or suffix slot is empty.",
+        "ru": "Задай сферу улучшения в настройках. Она используется, если пустой префикс или суффикс.",
     },
     "run.crash": {
         "en": "Craft stopped because of an error",
@@ -836,6 +904,10 @@ STRINGS: dict[str, dict[str, str]] = {
         "pt": "{key} ou Esc para parar",
         "zh": "{key} 或 Esc 停止",
         "ko": "{key} 또는 Esc로 중지",
+    },
+    "run.hud_stop_esc": {
+        "en": "Esc to stop",
+        "ru": "Esc — стоп",
     },
     "run.hud_score": {
         "en": "hit {hits}   miss {misses}",
@@ -1196,8 +1268,8 @@ STRINGS: dict[str, dict[str, str]] = {
         "ru": "Augment",
     },
     "wizard.augment_hint": {
-        "en": "If the chosen slot is empty, keep Alteration on the cursor and Alt-click the item (Augment). No extra move to the Augment pile.",
-        "ru": "Если выбранный слот пустой, сфера перемен остаётся на курсоре, по предмету клик с Alt — так используется Augment, без наведения на сферу улучшения.",
+        "en": "If the chosen slot is empty, the run clicks Orb of Augmentation instead of Alteration.",
+        "ru": "Если выбранный слот пустой, вместо сферы перемен кликается сфера улучшения (Augment).",
     },
     "wizard.augment_off": {
         "en": "Off — always Alteration",
@@ -1997,6 +2069,16 @@ STRINGS: dict[str, dict[str, str]] = {
         "zh": "珠宝",
         "ko": "주얼",
     },
+    "group.heist": {
+        "en": "Heist",
+        "ru": "Heist",
+        "de": "Heist",
+        "fr": "Heist",
+        "es": "Heist",
+        "pt": "Heist",
+        "zh": "赏金",
+        "ko": "하이스",
+    },
     "craft.basic_currency": {
         "en": "Basic currency",
         "ru": "Обычная валюта",
@@ -2089,6 +2171,36 @@ STRINGS: dict[str, dict[str, str]] = {
         "en": "Right-click the orb once, then only left-click the item. Faster and fewer misclicks.",
         "ru": "ПКМ по сфере один раз, дальше только ЛКМ по вещи. Быстрее и меньше промахов.",
     },
+    "settings.hotkeys": {
+        "en": "Hotkeys",
+        "ru": "Горячие клавиши",
+        "de": "Hotkeys",
+        "fr": "Raccourcis",
+        "es": "Atajos",
+        "pt": "Atalhos",
+        "zh": "快捷键",
+        "ko": "단축키",
+    },
+    "settings.hotkeys_hint": {
+        "en": "Click a bind, then press the key. Combinations work too, for example Ctrl+F5. Remove clears it. Esc cancels. Global even when this window is minimized.",
+        "ru": "Нажми бинд, затем нужную клавишу. Можно комбинации, например Ctrl+F5. Remove снимает бинд. Esc отменяет. Работает даже если окно свёрнуто.",
+    },
+    "settings.hotkey_heist_start": {
+        "en": "Heist / blueprints — start",
+        "ru": "Heist / блюпринты — старт",
+    },
+    "settings.hotkey_heist_stop": {
+        "en": "Heist / blueprints — stop",
+        "ru": "Heist / блюпринты — стоп",
+    },
+    "settings.hotkey_reveal_start": {
+        "en": "Blueprint reveal — start",
+        "ru": "Blueprint reveal — старт",
+    },
+    "settings.hotkey_reveal_stop": {
+        "en": "Blueprint reveal — stop",
+        "ru": "Blueprint reveal — стоп",
+    },
     "settings.hotkey_start": {
         "en": "Start crafting",
         "ru": "Старт крафта",
@@ -2124,8 +2236,8 @@ STRINGS: dict[str, dict[str, str]] = {
         "ru": "Окно статуса крафта",
     },
     "settings.hud_hint": {
-        "en": "Place and stretch the overlay. Left-click moves it, right-click or the corner resizes. You can also drag and resize it while a craft is running.",
-        "ru": "Поставь и растяни окно статуса. ЛКМ двигает, ПКМ или угол меняет размер. То же самое можно сделать, когда крафт уже идёт.",
+        "en": "Drag the title bar to move, pull the corner to resize. Safe to click while a craft or blueprint run is going.",
+        "ru": "Тяни за заголовок, угол меняет размер. Можно кликать, пока идёт крафт или блюпринты.",
     },
     "settings.hud_default": {
         "en": "Top right (default)",
@@ -2136,14 +2248,22 @@ STRINGS: dict[str, dict[str, str]] = {
         "ru": "Сбросить",
     },
     "settings.press_key": {
-        "en": "Press a key...",
-        "ru": "Нажми клавишу...",
-        "de": "Taste drücken...",
-        "fr": "Appuie sur une touche...",
-        "es": "Pulsa una tecla...",
-        "pt": "Carrega numa tecla...",
-        "zh": "请按一个键...",
-        "ko": "키를 누르세요...",
+        "en": "Press a key…",
+        "ru": "Нажми клавишу…",
+        "de": "Taste drücken…",
+        "fr": "Appuie sur une touche…",
+        "es": "Pulsa una tecla…",
+        "pt": "Carrega numa tecla…",
+        "zh": "请按一个键…",
+        "ko": "키를 누르세요…",
+    },
+    "settings.hotkey_none": {
+        "en": "None",
+        "ru": "Нет",
+    },
+    "settings.hotkey_remove": {
+        "en": "Remove",
+        "ru": "Убрать",
     },
     "settings.item": {
         "en": "Crafted item",
@@ -2555,6 +2675,12 @@ _ITEM_EN = {
     "Jewel": "Jewels",
     "AbyssJewel": "Abyss Jewels",
     "ClusterJewel": "Cluster Jewels",
+    "HeistEquipmentReward": "Heist Brooches",
+    "HeistEquipmentUtility": "Heist Cloaks",
+    "HeistEquipmentWeapon": "Heist Gear",
+    "HeistEquipmentTool": "Heist Tools",
+    "Trinket": "Trinkets",
+    "HeistContract": "Contracts",
 }
 
 _ITEM_RU = {
@@ -2585,6 +2711,12 @@ _ITEM_RU = {
     "Jewel": "Самоцветы",
     "AbyssJewel": "Самоцветы Бездны",
     "ClusterJewel": "Кластерные самоцветы",
+    "HeistEquipmentReward": "Броши",
+    "HeistEquipmentUtility": "Плащи",
+    "HeistEquipmentWeapon": "Снаряжение",
+    "HeistEquipmentTool": "Инструменты",
+    "Trinket": "Безделушки",
+    "HeistContract": "Контракты",
 }
 
 _ITEM_DE = {
@@ -2615,6 +2747,12 @@ _ITEM_DE = {
     "Jewel": "Juwelen",
     "AbyssJewel": "Abgrund-Juwelen",
     "ClusterJewel": "Cluster-Juwelen",
+    "HeistEquipmentReward": "Heist-Broschen",
+    "HeistEquipmentUtility": "Heist-Umhänge",
+    "HeistEquipmentWeapon": "Heist-Ausrüstung",
+    "HeistEquipmentTool": "Heist-Werkzeuge",
+    "Trinket": "Schmuckstücke",
+    "HeistContract": "Verträge",
 }
 
 _ITEM_FR = {
@@ -2645,6 +2783,12 @@ _ITEM_FR = {
     "Jewel": "Joyaux",
     "AbyssJewel": "Joyaux des Abysses",
     "ClusterJewel": "Joyaux de cluster",
+    "HeistEquipmentReward": "Broches de Heist",
+    "HeistEquipmentUtility": "Capes de Heist",
+    "HeistEquipmentWeapon": "Équipement de Heist",
+    "HeistEquipmentTool": "Outils de Heist",
+    "Trinket": "Breloques",
+    "HeistContract": "Contrats",
 }
 
 _ITEM_ES = {
@@ -2675,6 +2819,12 @@ _ITEM_ES = {
     "Jewel": "Joyas",
     "AbyssJewel": "Joyas del Abismo",
     "ClusterJewel": "Joyas de clúster",
+    "HeistEquipmentReward": "Broches de Heist",
+    "HeistEquipmentUtility": "Capas de Heist",
+    "HeistEquipmentWeapon": "Equipo de Heist",
+    "HeistEquipmentTool": "Herramientas de Heist",
+    "Trinket": "Abalorios",
+    "HeistContract": "Contratos",
 }
 
 _ITEM_PT = {
@@ -2705,6 +2855,12 @@ _ITEM_PT = {
     "Jewel": "Joias",
     "AbyssJewel": "Joias do Abismo",
     "ClusterJewel": "Joias de cluster",
+    "HeistEquipmentReward": "Broches de Heist",
+    "HeistEquipmentUtility": "Capas de Heist",
+    "HeistEquipmentWeapon": "Equipamento de Heist",
+    "HeistEquipmentTool": "Ferramentas de Heist",
+    "Trinket": "Berloques",
+    "HeistContract": "Contratos",
 }
 
 _ITEM_ZH = {
@@ -2735,6 +2891,12 @@ _ITEM_ZH = {
     "Jewel": "珠宝",
     "AbyssJewel": "深渊珠宝",
     "ClusterJewel": "集群珠宝",
+    "HeistEquipmentReward": "赏金胸针",
+    "HeistEquipmentUtility": "赏金斗篷",
+    "HeistEquipmentWeapon": "赏金装备",
+    "HeistEquipmentTool": "赏金工具",
+    "Trinket": "饰品",
+    "HeistContract": "合约",
 }
 
 _ITEM_KO = {
@@ -2765,6 +2927,12 @@ _ITEM_KO = {
     "Jewel": "주얼",
     "AbyssJewel": "심연 주얼",
     "ClusterJewel": "클러스터 주얼",
+    "HeistEquipmentReward": "하이스 브로치",
+    "HeistEquipmentUtility": "하이스 망토",
+    "HeistEquipmentWeapon": "하이스 장비",
+    "HeistEquipmentTool": "하이스 도구",
+    "Trinket": "장신구",
+    "HeistContract": "계약",
 }
 
 for _lang, _table in (

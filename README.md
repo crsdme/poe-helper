@@ -2,7 +2,7 @@
 
 Windows helper for **Path of Exile 1**. It maps your stash and inventory, then runs crafts and Heist chores with hotkeys so you are not clicking the same sequence by hand.
 
-Version `0.4.0`. UI languages: English, Russian, German, French, Spanish, Portuguese, Chinese, Korean.
+Version `0.5.0`. The main window is HTML in WebView2. UI languages: English, Russian, German, French, Spanish, Portuguese, Chinese, Korean.
 
 This is a local overlay and click helper. It is not an official Grinding Gear Games product and it does not talk to the game client beyond reading the screen and sending input.
 
@@ -32,7 +32,7 @@ Game affix data is cached locally from RePoE-style metadata (`data/cache/game_ca
 
 ## Requirements
 
-- Windows 10/11
+- Windows 10/11 with **WebView2** (built into Windows 11; on Windows 10 install the Evergreen runtime)
 - Python 3.12+ (for source runs)
 - Path of Exile 1 in **windowed** or **windowed fullscreen**, same monitor as the overlays
 - In-game **Advanced Mod Descriptions** enabled (more reliable prefix/suffix reading)

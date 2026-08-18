@@ -38,6 +38,18 @@ ITEM_TYPE_GROUPS = [
         "classes": ["Quiver"],
     },
     {
+        "id": "heist",
+        "name_ru": "Heist",
+        "classes": [
+            "HeistEquipmentReward",
+            "HeistEquipmentUtility",
+            "HeistEquipmentWeapon",
+            "HeistEquipmentTool",
+            "Trinket",
+            "HeistContract",
+        ],
+    },
+    {
         "id": "jewels",
         "name_ru": "Самоцветы",
         "classes": ["Jewel", "AbyssJewel", "ClusterJewel"],
@@ -72,6 +84,21 @@ ITEM_TYPE_NAMES_RU = {
     "Jewel": "Самоцветы",
     "AbyssJewel": "Самоцветы Бездны",
     "ClusterJewel": "Кластерные самоцветы",
+    "HeistEquipmentReward": "Броши",
+    "HeistEquipmentUtility": "Плащи",
+    "HeistEquipmentWeapon": "Снаряжение",
+    "HeistEquipmentTool": "Инструменты",
+    "Trinket": "Безделушки",
+    "HeistContract": "Контракты",
+}
+
+ITEM_TYPE_NAMES = {
+    "HeistEquipmentReward": "Heist Brooches",
+    "HeistEquipmentUtility": "Heist Cloaks",
+    "HeistEquipmentWeapon": "Heist Gear",
+    "HeistEquipmentTool": "Heist Tools",
+    "Trinket": "Trinkets",
+    "HeistContract": "Contracts",
 }
 
 CRAFTABLE_CLASSES = [cls for group in ITEM_TYPE_GROUPS for cls in group["classes"]]

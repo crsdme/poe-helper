@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="ru">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>PoE Helper</title>
+    <link rel="stylesheet" href="app.css" />
+    <link rel="icon" href="../assets/system/icon.png" />
+  </head>
+  <body>
+    <div id="app">
+      <header class="top">
+        <button class="brand" id="brand" type="button">
+          <img id="brand-icon" alt="" />
+          <span>
+            <strong id="app-title">PoE Helper</strong>
+            <small id="app-sub">Path of Exile 1</small>
+          </span>
+        </button>
+        <div class="top-right">
+          <div class="meta" id="meta"><i id="meta-dot"></i><span id="meta-text"></span></div>
+          <div class="combo combo-sm" id="lang-combo">
+            <button class="combo-trigger" id="lang-btn" type="button" aria-haspopup="listbox" aria-expanded="false"></button>
+            <div class="combo-pop" id="lang-pop" hidden></div>
+          </div>
+        </div>
+      </header>
+      <main id="view"></main>
+      <footer class="bar">
+        <span id="status"></span>
+        <span id="version"></span>
+      </footer>
+    </div>
+    <div id="toasts"></div>
+    <div id="modal" class="modal hidden" hidden>
+      <div class="modal-card">
+        <p id="modal-text"></p>
+        <div class="row end">
+          <button class="btn" id="modal-cancel" type="button"></button>
+          <button class="btn primary" id="modal-ok" type="button"></button>
+        </div>
+      </div>
+    </div>
+    <script src="app.js"></script>
+  </body>
+</html>

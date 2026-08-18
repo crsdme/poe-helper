@@ -44,6 +44,14 @@ def app_icon_ico() -> Path:
     return SYSTEM_DIR / "icon.png"
 
 
+def ui_dir() -> Path:
+    return BUNDLE / "app" / "ui"
+
+
+def ui_index() -> Path:
+    return ui_dir() / "index.html"
+
+
 def stash_image_path() -> Path:
     for candidate in (
         SYSTEM_DIR / "stash.jpg",

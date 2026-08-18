@@ -12,12 +12,15 @@ from app.heist.engine import (
     AssignLogger,
     capture_screen,
     cell_is_empty,
+    classify_blueprint_clipboard,
     click_screen,
+    copy_item_under_cursor,
     ctrl_click_screen,
     find_blueprint_item,
     inventory_grid,
     logs_dir_from_config,
     sync_inventory_grid,
+    _item_class_name,
 )
 
 try:
@@ -55,8 +58,8 @@ def _apply_defaults(data: dict[str, Any]) -> dict[str, Any]:
     data.setdefault("min_area_px", 12000)
     data.setdefault("min_side_px", 90)
     data.setdefault("max_area_frac", 0.22)
-    data.setdefault("blink_samples", 4)
-    data.setdefault("blink_sample_sec", 0.11)
+    data.setdefault("blink_samples", 2)
+    data.setdefault("blink_sample_sec", 0.08)
     data.setdefault("eye_match_threshold", 0.58)
     data.setdefault("take_settle_sec", 0.35)
     data.setdefault("ui_points", {})
@@ -132,7 +135,7 @@ class WingHit:
     area: float
 
 
-_EYE_SCALES = (0.7, 0.85, 1.0, 1.15, 1.35, 1.55, 1.8, 2.0, 2.2)
+_EYE_SCALES = (0.85, 1.05, 1.3, 1.6, 1.95)
 _EYE_TEMPLATE = None
 _EYE_TEMPLATE_TRIED = False
 
@@ -176,6 +179,20 @@ def _nms_hits(hits: list[WingHit], dist: int = 48) -> list[WingHit]:
     return kept
 
 
+def _template_peaks(result, thresh: float, radius: int, limit: int = 6) -> list[tuple[int, int, float]]:
+    peaks: list[tuple[int, int, float]] = []
+    work = result.copy()
+    rad = max(12, int(radius))
+    for _ in range(limit):
+        _min_v, max_v, _min_l, max_l = cv2.minMaxLoc(work)
+        if float(max_v) < thresh:
+            break
+        x, y = int(max_l[0]), int(max_l[1])
+        peaks.append((x, y, float(max_v)))
+        cv2.circle(work, (x, y), rad, 0, -1)
+    return peaks
+
+
 def find_reveal_buttons(image, cfg: dict[str, Any], *, offset: tuple[int, int] = (0, 0)) -> list[WingHit]:
     """Gold circular eye buttons at the bottom-right of large wings."""
     if cv2 is None or np is None or image is None or image.size == 0:
@@ -195,13 +212,11 @@ def find_reveal_buttons(image, cfg: dict[str, Any], *, offset: tuple[int, int] =
         interp = cv2.INTER_AREA if scale < 1 else cv2.INTER_CUBIC
         scaled = cv2.resize(tpl, (tw, th), interpolation=interp)
         result = cv2.matchTemplate(image, scaled, cv2.TM_CCOEFF_NORMED)
-        ys, xs = np.where(result >= thresh)
-        for y, x in zip(ys.tolist(), xs.tolist()):
+        for x, y, score in _template_peaks(result, thresh, max(tw, th) // 2):
             cx = x + tw // 2
             cy = y + th // 2
             if cy > h * 0.84 or cx < w * 0.12:
                 continue
-            score = float(result[y, x])
             raw.append(
                 WingHit(
                     x=ox + cx,
@@ -311,19 +326,6 @@ def _capture_map(cfg: dict[str, Any], sct):
     return capture_screen((region.x, region.y, region.w, region.h), sct=sct)
 
 
-def _slot_click(cfg: dict[str, Any], sct) -> tuple[int, int] | None:
-    mapped = slot_point(cfg)
-    found = _find_slot_item(cfg, sct)
-    if found is not None and mapped is not None:
-        dx = found[0] - mapped[0]
-        dy = found[1] - mapped[1]
-        if dx * dx + dy * dy <= 140 * 140:
-            return found
-    if found is not None and mapped is None:
-        return found
-    return mapped or found
-
-
 def _find_slot_item(cfg: dict[str, Any], sct) -> tuple[int, int] | None:
     from app.heist.engine import templates_dir
 
@@ -369,28 +371,33 @@ def _take_blueprint_back(cfg: dict[str, Any], sct, logger: AssignLogger, delay: 
     from app.heist.engine import focus_game_window
 
     focus_game_window()
-    slot = _slot_click(cfg, sct)
+    mapped = slot_point(cfg)
+    slot = mapped or _find_slot_item(cfg, sct)
     if slot is None:
         logger.log("blueprint slot not found — Shift+click skipped")
         return False
     logger.log(f"SHIFT+click blueprint ({slot[0]},{slot[1]})")
     shift_click_screen(slot[0], slot[1], delay=delay)
-    settle = float(cfg.get("take_settle_sec", 0.35))
+    settle = min(0.22, float(cfg.get("take_settle_sec", 0.35)))
     if settle > 0:
         time.sleep(settle)
+    if mapped is not None:
+        return True
     still = _find_slot_item(cfg, sct)
     if still is None:
         return True
     logger.log("slot still occupied — Shift+click retry")
     shift_click_screen(still[0], still[1], delay=delay)
-    time.sleep(max(0.2, settle))
-    still = _find_slot_item(cfg, sct)
-    if still is None:
-        return True
-    logger.log("slot still occupied — Ctrl+click fallback")
-    ctrl_click_screen(still[0], still[1], delay=delay)
-    time.sleep(max(0.2, settle))
+    time.sleep(max(0.15, settle))
     return _find_slot_item(cfg, sct) is None
+
+
+def _scan_wings(cfg: dict[str, Any], sct) -> list[WingHit]:
+    frame, offset = _capture_map(cfg, sct)
+    buttons = find_reveal_buttons(frame, cfg, offset=offset)
+    if buttons:
+        return buttons
+    return _wings_from_mask(_wing_mask(frame), cfg, offset)
 
 
 def reveal_one_blueprint(
@@ -402,26 +409,20 @@ def reveal_one_blueprint(
 ) -> int:
     delay = float(cfg.get("click_delay_sec", 0.1))
     settle = float(cfg.get("reveal_settle_sec", 0.28))
-    blink = float(cfg.get("blink_sample_sec", 0.11))
-    samples = max(1, int(cfg.get("blink_samples", 4)))
+    blink = float(cfg.get("blink_sample_sec", 0.08))
+    samples = max(1, int(cfg.get("blink_samples", 2)))
     limit = max(1, int(cfg.get("max_reveals_per_blueprint", 8)))
     done = 0
     for _ in range(limit):
         if _stopped(stop_event):
             break
-        combined = None
-        offset = (0, 0)
-        buttons: list[WingHit] = []
-        for index in range(samples):
-            frame, offset = _capture_map(cfg, sct)
-            buttons.extend(find_reveal_buttons(frame, cfg, offset=offset))
-            mask = _wing_mask(frame)
-            combined = mask if combined is None else cv2.bitwise_or(combined, mask)
-            if index + 1 < samples and not _sleep(blink, stop_event):
-                break
-        wings = _nms_hits(buttons, dist=48) if buttons else []
-        if not wings and combined is not None:
-            wings = _wings_from_mask(combined, cfg, offset)
+        wings = _scan_wings(cfg, sct)
+        extra = 1
+        while not wings and extra < samples:
+            if not _sleep(blink, stop_event):
+                return done
+            wings = _scan_wings(cfg, sct)
+            extra += 1
         if not wings:
             break
         wing = wings[0]
@@ -431,6 +432,12 @@ def reveal_one_blueprint(
         if not _sleep(settle, stop_event):
             break
     return done
+
+
+def _peek_cell(x: int, y: int) -> tuple[str, str]:
+    text = copy_item_under_cursor(x, y, hover_sec=0.1, settle_sec=0.1, retries=2)
+    kind = classify_blueprint_clipboard(text)
+    return kind, _item_class_name(text) or (text.splitlines()[0].strip() if text.strip() else "")
 
 
 def reveal_blueprints(
@@ -472,20 +479,47 @@ def reveal_blueprints(
                         break
                     continue
                 x, y = cell.click
+                kind, label = _peek_cell(x, y)
+                if kind == "fail":
+                    logger.log(f"skip cell {index}/{len(cells)} — could not read item")
+                    continue
+                if kind == "other":
+                    logger.log(f"skip cell {index}/{len(cells)} — not a blueprint ({label or '?'})")
+                    continue
+                if kind == "confirmed":
+                    logger.log(f"skip cell {index}/{len(cells)} — all wings already revealed")
+                    continue
                 if on_hud is not None:
                     try:
                         on_hud(f"{index}/{len(cells)}", f"OPEN {index}/{len(cells)}")
                     except Exception:
                         pass
-                logger.log(f"OPEN inventory cell {index}/{len(cells)} ({x},{y})")
+                logger.log(f"OPEN blueprint {index}/{len(cells)} ({x},{y}) {label}")
                 ctrl_click_screen(x, y, delay=delay)
-                if not _sleep(open_settle, stop_event):
+                ready_until = time.monotonic() + max(0.12, open_settle)
+                wings: list[WingHit] = []
+                while time.monotonic() < ready_until:
+                    if _stopped(stop_event):
+                        break
+                    wings = _scan_wings(cfg, sct)
+                    if wings:
+                        break
+                    if not _sleep(0.05, stop_event):
+                        break
+                if _stopped(stop_event):
                     break
-                revealed = reveal_one_blueprint(cfg, sct=sct, logger=logger, stop_event=stop_event)
+                revealed = 0
+                if wings:
+                    wing = wings[0]
+                    logger.log(f"REVEAL wing ({wing.x},{wing.y}) {wing.bbox[2]}x{wing.bbox[3]}")
+                    click_screen(wing.x, wing.y, delay=delay)
+                    revealed = 1
+                    if _sleep(float(cfg.get("reveal_settle_sec", 0.28)), stop_event):
+                        revealed += reveal_one_blueprint(cfg, sct=sct, logger=logger, stop_event=stop_event)
+                else:
+                    revealed = reveal_one_blueprint(cfg, sct=sct, logger=logger, stop_event=stop_event)
                 logger.log(f"wings revealed={revealed}")
                 total += revealed
-                if not _sleep(float(cfg.get("take_settle_sec", 0.35)), stop_event):
-                    break
                 taken = _take_blueprint_back(cfg, sct, logger, delay)
                 logger.log("blueprint returned to inventory" if taken else "could not return blueprint")
                 if not taken:

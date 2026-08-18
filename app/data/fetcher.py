@@ -19,6 +19,7 @@ from app.data.static import (
     CRAFT_TYPES,
     CRAFTABLE_CLASSES,
     ITEM_TYPE_GROUPS,
+    ITEM_TYPE_NAMES,
     ITEM_TYPE_NAMES_RU,
     actions_for_craft_type,
 )
@@ -34,11 +35,25 @@ _GROUP_BY_CLASS = {
     for item_class in group["classes"]
 }
 
-_BASE_DOMAINS = {"item", "misc", "abyss_jewel", "affliction_jewel"}
+_BASE_DOMAINS = {
+    "item",
+    "misc",
+    "abyss_jewel",
+    "affliction_jewel",
+    "heist_npc",
+    "heist_trinket",
+    "heist_area",
+}
 _MOD_DOMAINS_FOR: dict[str, set[str]] = {
     "Jewel": {"misc"},
     "AbyssJewel": {"abyss_jewel"},
     "ClusterJewel": {"affliction_jewel"},
+    "HeistEquipmentReward": {"heist_npc"},
+    "HeistEquipmentUtility": {"heist_npc"},
+    "HeistEquipmentWeapon": {"heist_npc"},
+    "HeistEquipmentTool": {"heist_npc"},
+    "Trinket": {"heist_trinket"},
+    "HeistContract": {"heist_area"},
 }
 
 
@@ -139,7 +154,14 @@ def _canonical_item_class(row: dict[str, Any]) -> str | None:
 
 
 def _usable_base(row: dict[str, Any]) -> bool:
-    return row.get("release_state") == "released" and row.get("domain") in _BASE_DOMAINS
+    if row.get("release_state") != "released":
+        return False
+    if row.get("domain") not in _BASE_DOMAINS:
+        return False
+    name = (row.get("name") or "").strip()
+    if not name or name.startswith("[") or "UNUSED" in name.upper():
+        return False
+    return True
 
 
 def _build_item_types(bases_raw: dict[str, Any]) -> list[dict[str, Any]]:
@@ -155,7 +177,7 @@ def _build_item_types(bases_raw: dict[str, Any]) -> list[dict[str, Any]]:
         rows.append(
             {
                 "id": item_class,
-                "name": item_class,
+                "name": ITEM_TYPE_NAMES.get(item_class, item_class),
                 "name_ru": ITEM_TYPE_NAMES_RU.get(item_class, item_class),
                 "group": _GROUP_BY_CLASS.get(item_class, "other"),
             }

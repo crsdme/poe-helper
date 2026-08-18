@@ -8,9 +8,10 @@ project = Path(SPECPATH)
 datas = []
 binaries = []
 hiddenimports = [
-    "customtkinter",
-    "darkdetect",
-    "packaging",
+    "webview",
+    "bottle",
+    "proxy_tools",
+    "clr_loader",
     "PIL",
     "PIL._tkinter_finder",
     "cv2",
@@ -18,7 +19,7 @@ hiddenimports = [
     "mss",
 ]
 
-for package in ("customtkinter", "PIL", "cv2", "numpy", "mss"):
+for package in ("webview", "PIL", "cv2", "numpy", "mss"):
     pkg_datas, pkg_binaries, pkg_hidden = collect_all(package)
     datas += pkg_datas
     binaries += pkg_binaries
@@ -27,6 +28,9 @@ for package in ("customtkinter", "PIL", "cv2", "numpy", "mss"):
 assets = project / "app" / "assets"
 if assets.is_dir():
     datas.append((str(assets), "app/assets"))
+ui = project / "app" / "ui"
+if ui.is_dir():
+    datas.append((str(ui), "app/ui"))
 
 icon = project / "app" / "assets" / "system" / "icon.ico"
 if not icon.is_file():
@@ -41,7 +45,7 @@ a = Analysis(
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
-    excludes=[],
+    excludes=["customtkinter"],
     noarchive=False,
 )
 pyz = PYZ(a.pure)

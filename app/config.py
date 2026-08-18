@@ -7,6 +7,16 @@ from app.settings import load_settings, save_settings
 
 HUD_WIDTH = 260
 HUD_HEIGHT = 148
+SPEED_MIN_MS = 15
+SPEED_MAX_MS = 400
+
+
+def clamp_speed_ms(value: object, default: int = 80) -> int:
+    try:
+        ms = int(value)  # type: ignore[arg-type]
+    except (TypeError, ValueError):
+        ms = default
+    return max(SPEED_MIN_MS, min(SPEED_MAX_MS, ms))
 
 
 def default_hud_xy(screen_w: int, width: int = HUD_WIDTH) -> tuple[int, int]:
@@ -196,7 +206,7 @@ class AppConfig:
         tab_data = data.get("currency_tab")
         return cls(
             language=data.get("language", "ru"),
-            speed_ms=max(0, int(data.get("speed_ms", 80))),
+            speed_ms=clamp_speed_ms(data.get("speed_ms", 80)),
             logs_enabled=bool(data.get("logs_enabled", True)),
             shift_lock=bool(data.get("shift_lock", True)),
             hotkey_start=data.get("hotkey_start", "F6"),

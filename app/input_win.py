@@ -86,6 +86,10 @@ VK_RMENU = 0xA5
 CF_UNICODETEXT = 13
 WM_HOTKEY = 0x0312
 PM_REMOVE = 0x0001
+MOD_ALT = 0x0001
+MOD_CONTROL = 0x0002
+MOD_SHIFT = 0x0004
+MOD_WIN = 0x0008
 MOD_NOREPEAT = 0x4000
 
 _VK = {f"F{i}": 0x70 + i - 1 for i in range(1, 13)}
@@ -109,6 +113,18 @@ _VK.update(
     }
 )
 ASFW_ANY = 0xFFFFFFFF
+_MOD_ALIASES = {
+    "CONTROL": "CTRL",
+    "CTRL": "CTRL",
+    "ALT": "ALT",
+    "MENU": "ALT",
+    "SHIFT": "SHIFT",
+    "WIN": "WIN",
+    "META": "WIN",
+    "WINDOWS": "WIN",
+}
+_MOD_BITS = {"CTRL": MOD_CONTROL, "ALT": MOD_ALT, "SHIFT": MOD_SHIFT, "WIN": MOD_WIN}
+_KEY_ALIASES = {"ESC": "ESCAPE", "ENTER": "RETURN", "ARROWUP": "UP", "ARROWDOWN": "DOWN"}
 
 
 class _POINT(ctypes.Structure):
@@ -181,11 +197,65 @@ def vk_from_name(name: str) -> int | None:
     key = (name or "").strip().upper()
     if not key:
         return None
+    if "+" in key or " " in key:
+        parsed = parse_hotkey(key)
+        return None if parsed is None else parsed[1]
     if key in _VK:
         return _VK[key]
     if len(key) == 1:
         return ord(key)
     return None
+
+
+def _hotkey_tokens(name: str) -> list[str]:
+    raw = (name or "").strip().upper().replace(" ", "+")
+    return [part for part in raw.split("+") if part]
+
+
+def normalize_hotkey(name: str) -> str:
+    tokens = _hotkey_tokens(name)
+    if not tokens:
+        return ""
+    mods: set[str] = set()
+    key = ""
+    for token in tokens:
+        alias = _MOD_ALIASES.get(token)
+        if alias:
+            mods.add(alias)
+            continue
+        if key:
+            return ""
+        key = _KEY_ALIASES.get(token, token)
+    if not key or key in _MOD_ALIASES:
+        return ""
+    parts = [label for label in ("CTRL", "ALT", "SHIFT", "WIN") if label in mods]
+    parts.append(key)
+    return "+".join(parts)
+
+
+def parse_hotkey(name: str) -> tuple[int, int] | None:
+    label = normalize_hotkey(name)
+    if not label:
+        return None
+    parts = label.split("+")
+    key = parts[-1]
+    mods = 0
+    for part in parts[:-1]:
+        mods |= _MOD_BITS.get(part, 0)
+    vk = _VK.get(key) if key in _VK else (ord(key) if len(key) == 1 else None)
+    if vk is None:
+        return None
+    return mods, vk
+
+
+def _mods_match(mods: int) -> bool:
+    ctrl = key_is_down(VK_CONTROL) or key_is_down(VK_LCONTROL) or key_is_down(VK_RCONTROL)
+    shift = key_is_down(VK_SHIFT) or key_is_down(VK_LSHIFT) or key_is_down(VK_RSHIFT)
+    alt = key_is_down(VK_MENU) or key_is_down(VK_LMENU) or key_is_down(VK_RMENU)
+    want_ctrl = bool(mods & MOD_CONTROL)
+    want_shift = bool(mods & MOD_SHIFT)
+    want_alt = bool(mods & MOD_ALT)
+    return ctrl == want_ctrl and shift == want_shift and alt == want_alt
 
 
 def move_to(x: int, y: int) -> None:
@@ -561,8 +631,8 @@ class HotkeyListener:
         poll: dict[str, Callable[[], None]] | None = None,
     ) -> None:
         self.stop()
-        pairs = [(name, callback) for name, callback in binds.items() if vk_from_name(name)]
-        extra = [(name, callback) for name, callback in (poll or {}).items() if vk_from_name(name)]
+        pairs = [(name, callback) for name, callback in binds.items() if parse_hotkey(name)]
+        extra = [(name, callback) for name, callback in (poll or {}).items() if parse_hotkey(name)]
         if not pairs and not extra:
             return
         self.enabled = True
@@ -586,25 +656,26 @@ class HotkeyListener:
         ids: list[int] = []
         hotkey_id = 1
         for name, callback in pairs:
-            vk = vk_from_name(name)
-            if vk is None:
+            parsed = parse_hotkey(name)
+            if parsed is None:
                 continue
-            ok = user32.RegisterHotKey(None, hotkey_id, MOD_NOREPEAT, vk)
+            mods, vk = parsed
+            ok = user32.RegisterHotKey(None, hotkey_id, mods | MOD_NOREPEAT, vk)
             if not ok:
-                ok = user32.RegisterHotKey(None, hotkey_id, 0, vk)
+                ok = user32.RegisterHotKey(None, hotkey_id, mods, vk)
             if ok:
                 mapping[hotkey_id] = callback
                 ids.append(hotkey_id)
                 hotkey_id += 1
-        poll_targets: list[tuple[int, Callable[[], None]]] = []
-        seen: set[int] = set()
+        poll_targets: list[tuple[int, int, Callable[[], None]]] = []
+        seen: set[tuple[int, int]] = set()
         for name, callback in pairs + extra:
-            vk = vk_from_name(name)
-            if vk is None or vk in seen:
+            parsed = parse_hotkey(name)
+            if parsed is None or parsed in seen:
                 continue
-            seen.add(vk)
-            poll_targets.append((vk, callback))
-        prev = {vk: False for vk, _ in poll_targets}
+            seen.add(parsed)
+            poll_targets.append((parsed[0], parsed[1], callback))
+        prev = {item[:2]: False for item in poll_targets}
         last_fire: dict[int, float] = {}
         msg = _MSG()
         try:
@@ -612,11 +683,12 @@ class HotkeyListener:
                 got = user32.PeekMessageW(ctypes.byref(msg), None, 0, 0, PM_REMOVE)
                 if got and msg.message == WM_HOTKEY:
                     self._fire(mapping.get(int(msg.wParam)), last_fire)
-                for vk, callback in poll_targets:
-                    down = key_is_down(vk)
-                    if down and not prev[vk]:
+                for mods, vk, callback in poll_targets:
+                    down = key_is_down(vk) and _mods_match(mods)
+                    key = (mods, vk)
+                    if down and not prev[key]:
                         self._fire(callback, last_fire)
-                    prev[vk] = down
+                    prev[key] = down
                 time.sleep(0.03)
         finally:
             for item_id in ids:

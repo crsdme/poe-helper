@@ -7,8 +7,8 @@ from collections import Counter
 from collections.abc import Callable
 from threading import Event, Thread
 
-from app.config import AppConfig, Rect, load_config
-from app.craft_logic import condition_report
+from app.config import AppConfig, Rect, clamp_speed_ms, load_config
+from app.craft_logic import condition_report, matched_mod_names
 from app.data.catalog import GameCatalog
 from app.data.models import CraftScenario, CraftStep
 from app.debug import dbg, dbg_exc
@@ -69,6 +69,9 @@ class CraftRunner:
         self.misses = 0
         self._status = "idle"
         self._locked: str | None = None
+        self._cursor_orb: str | None = None
+        self._locked_point: tuple[int, int] | None = None
+        self._prefer_aug_orb = False
         self._leave = "run.stopped"
         self._total = 0
         self._pace = 0
@@ -95,9 +98,12 @@ class CraftRunner:
         self.misses = 0
         self._status = "running"
         self._locked = None
+        self._cursor_orb = None
+        self._locked_point = None
+        self._prefer_aug_orb = False
         self._leave = "run.stopped"
         self._total = 0
-        self._pace = max(0, int(config.speed_ms))
+        self._pace = clamp_speed_ms(config.speed_ms)
         self._stop.clear()
         self._resume.clear()
         self._same_streak = 0
@@ -161,7 +167,9 @@ class CraftRunner:
         if cells:
             self._run_chain(scenario, config, cells)
             return
+        before = self._spent_total()
         if self._run_scenario(scenario, config):
+            self._note_craft(config, before)
             self._finish("done", "run.done")
 
     def _run_chain(self, scenario: CraftScenario, config: AppConfig, cells: list[Rect]) -> None:
@@ -187,9 +195,11 @@ class CraftRunner:
                 self._log(work, f"CHAIN skip empty {index}/{len(cells)}")
                 continue
             self._handoff = parsed
+            before = self._spent_total()
             if not self._run_scenario(scenario, work):
                 return
-            crafted += 1
+            if self._note_craft(work, before):
+                crafted += 1
         self._finish("done", "run.chain_done" if crafted else "run.chain_empty")
 
     def _run_scenario(self, scenario: CraftScenario, config: AppConfig) -> bool:
@@ -255,6 +265,8 @@ class CraftRunner:
                 parsed = None
                 known_miss = False
                 continue
+            if isinstance(prep, ParsedItem):
+                parsed = prep
             if not known_miss and self._condition_met(parsed, step, config, index, actions, once_done):
                 self._handoff = parsed
                 return True
@@ -262,14 +274,18 @@ class CraftRunner:
                 self._finish("error", "run.limit")
                 return False
             action = _currency_for(parsed, step)
-            extra = ""
+            bits: list[str] = []
             if action == "augmentation" and step.fill_affix():
-                extra = f" (Alt {step.fill_affix()} empty)"
+                bits.append(f"empty {step.fill_affix()}")
             if not self._use_currency(parsed, step, config, action):
                 if self._status == "running":
                     self._finish("stopped", self._leave)
                 return False
-            self._log(config, f"USE   {action}{extra} ×{self.spent[action] + 1}")
+            self.spent[action] += 1
+            if action == "augmentation" and self._locked == "alteration":
+                bits.append("Alt")
+            extra = f" ({', '.join(bits)})" if bits else ""
+            self._log(config, f"USE   {action}{extra}")
             after = self._read_after(config, parsed)
             if self._use_wasted(parsed, after, action, step, config):
                 if self._chaining and after is None:
@@ -288,7 +304,6 @@ class CraftRunner:
                 known_miss = False
                 continue
             self._total += 1
-            self.spent[action] += 1
             once_done = True
             actions += 1
             back = self._rewind_to(after, index, config)
@@ -326,7 +341,8 @@ class CraftRunner:
             return False
         if actions:
             self.hits += 1
-            self._log(config, "HIT")
+            names = matched_mod_names(item, step.condition)
+            self._log(config, "HIT " + " | ".join(names) if names else "HIT")
         else:
             self._log(config, f"STEP {index} skip — condition already met")
         self._push_hud("running", item)
@@ -345,30 +361,42 @@ class CraftRunner:
 
     def _use_currency(self, item: ParsedItem, step: CraftStep, config: AppConfig, action: str) -> bool:
         self._log_item(config, item, "BEFORE")
-        via_alt = action == "augmentation" and bool(step.fill_affix())
-        if not self._apply(action, config, alt=via_alt):
+        if not self._apply(action, config):
             if self._stop.is_set() or not game_is_active():
                 self._leave = "run.game_left" if not game_is_active() else self._leave
                 self._finish("stopped", self._leave)
                 return False
-            self._finish("error", "run.need_augment" if via_alt else "run.no_point")
+            self._finish("error", "run.need_augment" if action == "augmentation" else "run.no_point")
             return False
         return self._wait(self._pace)
 
-    def _read_after(self, config: AppConfig, before: ParsedItem | None = None) -> ParsedItem | None:
+    def _read_after(
+        self,
+        config: AppConfig,
+        before: ParsedItem | None = None,
+        *,
+        tries: int = 8,
+        wait_ms: int | None = None,
+        ready=None,
+    ) -> ParsedItem | None:
         last = None
         before_key = _item_key(before)
-        for attempt in range(8):
+        gap = max(self._pace, 25) if wait_ms is None else wait_ms
+        for attempt in range(max(1, tries)):
             if self._stop.is_set() or self._escape():
                 return last
             after = self._read_item(config)
             if after:
                 last = after
-                if before_key is None or _item_key(after) != before_key:
+                if ready is not None:
+                    if ready(after):
+                        self._log_item(config, after, "AFTER")
+                        return after
+                elif before_key is None or _item_key(after) != before_key:
                     self._log_item(config, after, "AFTER")
                     return after
                 dbg(f"read_after stale attempt={attempt}")
-            if not self._wait(max(self._pace, 25)):
+            if not self._wait(gap):
                 return last
         if last:
             self._log_item(config, last, "AFTER same", force=True)
@@ -391,13 +419,16 @@ class CraftRunner:
             self._same_streak = 0
             if self._aug_did_not_fill(before, after, action, step):
                 self._log(config, "AUG   miss — slot still open")
-                return True
+                self._prefer_aug_orb = True
+                return False
+            self._prefer_aug_orb = False
             return False
-        if action in MUST_CHANGE:
-            return True
         self._same_streak += 1
         self._log(config, f"SAME  {action} ×{self._same_streak}")
-        return self._same_streak >= SAME_STREAK
+        if action == "augmentation":
+            self._prefer_aug_orb = True
+        need = 2 if action in MUST_CHANGE else SAME_STREAK
+        return self._same_streak >= need
 
     def _aug_did_not_fill(
         self,
@@ -420,8 +451,8 @@ class CraftRunner:
         return after_p + after_s <= before_p + before_s
 
     def _pause_empty(self, action: str, config: AppConfig) -> bool:
-        self._release_lock()
-        release_modifiers(shift=True)
+        alt_up()
+        shift_up()
         self._same_streak = 0
         self._status = "paused"
         self._log(config, f"PAUSE empty {action}")
@@ -437,32 +468,55 @@ class CraftRunner:
             return False
         self._status = "running"
         self._same_streak = 0
+        if self._cursor_orb:
+            shift_down()
+            self._locked = self._cursor_orb
         self._log(config, "RESUME")
         self._emit("resumed", action)
         self._push_hud("running")
         return self._attach_game()
 
-    def _prepare(self, item: ParsedItem, action_id: str, config: AppConfig) -> str | None | bool:
+    def _prepare(self, item: ParsedItem, action_id: str, config: AppConfig) -> ParsedItem | str | bool | None:
         if action_id.startswith("harvest_"):
             return None
-        if not item.identified:
-            return self._prep_use(item, config, "wisdom", "run.need_wisdom", "PREP  unidentified → wisdom")
-        need = _rarity_need(action_id)
-        if need is None or item.rarity == need:
-            return None
-        if need == "magic":
-            if item.rarity == "normal":
-                return self._prep_use(item, config, "transmutation", "run.need_transmute", "PREP  normal → transmutation")
-            if item.rarity == "rare":
-                return self._prep_use(item, config, "scouring", "run.need_scour", "PREP  rare → scouring")
-        if need == "rare":
-            if item.rarity == "normal":
-                return self._prep_use(item, config, "alchemy", "run.need_alch", "PREP  normal → alchemy")
-            if item.rarity == "magic":
-                return self._prep_use(item, config, "regal", "run.need_regal", "PREP  magic → regal")
-        if need == "normal" and item.rarity != "normal":
-            return "run.need_normal"
-        return None
+        current = item
+        for _ in range(6):
+            if self._stop.is_set() or self._escape():
+                return False
+            if not current.identified:
+                result = self._prep_use(
+                    current, config, "wisdom", "run.need_wisdom", "PREP  unidentified → wisdom"
+                )
+                if not isinstance(result, ParsedItem):
+                    return result
+                current = result
+                continue
+            need = _rarity_need(action_id)
+            if need is None or current.rarity == need:
+                return None if current is item else current
+            if need == "magic":
+                if current.rarity == "normal":
+                    spec = ("transmutation", "run.need_transmute", "PREP  normal → transmutation")
+                elif current.rarity == "rare":
+                    spec = ("scouring", "run.need_scour", "PREP  rare → scouring")
+                else:
+                    return None if current is item else current
+            elif need == "rare":
+                if current.rarity == "normal":
+                    spec = ("alchemy", "run.need_alch", "PREP  normal → alchemy")
+                elif current.rarity == "magic":
+                    spec = ("regal", "run.need_regal", "PREP  magic → regal")
+                else:
+                    return None if current is item else current
+            elif need == "normal":
+                return "run.need_normal"
+            else:
+                return None if current is item else current
+            result = self._prep_use(current, config, spec[0], spec[1], spec[2])
+            if not isinstance(result, ParsedItem):
+                return result
+            current = result
+        return current
 
     def _prep_use(
         self,
@@ -471,24 +525,38 @@ class CraftRunner:
         action: str,
         missing: str,
         note: str,
-    ) -> str | bool:
-        if not config.point_for(action):
+    ) -> ParsedItem | str | bool:
+        point = config.point_for(action)
+        item_pt = config.point_for("item")
+        if not point or not item_pt:
             return missing
-        self._release_lock()
         self._log(config, note)
-        if not self._apply(action, config):
-            if self._stop.is_set() or not game_is_active():
+        for attempt in range(2):
+            if self._stop.is_set() or self._escape():
                 return False
-            return "run.no_point"
-        if not self._wait(self._pace):
-            return False
-        after = self._read_after(config, before)
-        if self._use_wasted(before, after, action, None, config):
-            if not self._pause_empty(action, config):
+            if attempt:
+                self._log(config, f"RETRY {action}")
+            if not self._apply(action, config, force_hold=bool(attempt)):
+                if self._stop.is_set() or not game_is_active():
+                    return False
+                return "run.no_point"
+            if not self._wait(max(self._pace, 70)):
                 return False
+            after = self._read_after(
+                config,
+                before,
+                tries=12,
+                wait_ms=max(self._pace, 40),
+                ready=lambda item, kind=action: _prep_done(kind, item),
+            )
+            if _prep_done(action, after):
+                self.spent[action] += 1
+                self._log(config, f"USE   {action}")
+                self._push_hud("running", after)
+                return after
+            self._log(config, f"SAME  {action} rarity={after.rarity if after else '-'}")
+        if not self._pause_empty(action, config):
             return False
-        self.spent[action] += 1
-        self._push_hud("running", after)
         return False
 
     def _peek_item(self, config: AppConfig) -> ParsedItem | None:
@@ -508,11 +576,6 @@ class CraftRunner:
         parsed = self._read_item(config)
         if parsed:
             return parsed
-        if self._locked:
-            self._release_lock()
-            parsed = self._read_item(config)
-            if parsed:
-                return parsed
         if tries <= 2:
             return None
         self._emit("log", "run.waiting_item")
@@ -553,7 +616,7 @@ class CraftRunner:
             if key_is_down(VK_CONTROL):
                 dbg("copy_item ctrl still down, releasing")
                 release_ctrl()
-            if self._locked:
+            if self._locked or self._cursor_orb:
                 shift_down()
             self._nap()
             try:
@@ -578,12 +641,10 @@ class CraftRunner:
             self._log(config, "COPY empty")
         return ""
 
-    def _apply(self, action: str, config: AppConfig, alt: bool = False) -> bool:
+    def _apply(self, action: str, config: AppConfig, *, force_hold: bool = False) -> bool:
         item = config.point_for("item")
         if not item:
             return False
-        if alt:
-            return self._apply_alt_augment(config, item)
         point = config.point_for(action)
         if not point:
             return False
@@ -591,61 +652,99 @@ class CraftRunner:
         if harvest:
             self._release_lock()
             self._click(*point, "left")
-            if not self._wait(config.speed_ms):
+            if not self._wait(self._pace):
                 return False
             apply_at = config.point_for("harvest_apply")
             if apply_at and apply_at != point:
                 self._click(*apply_at, "left")
-                if not self._wait(config.speed_ms):
+                if not self._wait(self._pace):
                     return False
             self._click(*item, "left")
             return True
         if config.shift_lock:
-            if self._locked != action:
-                self._release_lock()
-                shift_down()
-                self._nap()
-                self._click(*point, "right")
-                self._locked = action
-                if not self._wait(config.speed_ms):
+            if (
+                action == "augmentation"
+                and not self._prefer_aug_orb
+                and not force_hold
+                and self._aug_with_alt(item, config)
+            ):
+                return True
+            if force_hold or self._locked != action:
+                if not self._hold_currency(action, point, force=force_hold):
                     return False
+            shift_down()
             self._click(*item, "left")
             return True
         self._release_lock()
         self._click(*point, "right")
-        if not self._wait(config.speed_ms):
+        if not self._wait(self._pace):
             return False
         self._click(*item, "left")
         return True
 
-    def _apply_alt_augment(self, config: AppConfig, item: tuple[int, int]) -> bool:
-        """Keep Alteration on the cursor and Alt-click the item instead of moving to Augment."""
+    def _aug_with_alt(self, item: tuple[int, int], config: AppConfig) -> bool:
+        """PoE 3.27: Alteration on cursor + Alt + click item uses Augment from stash."""
+        alt_point = config.point_for("alteration")
+        if not alt_point:
+            return False
         if self._locked != "alteration":
-            point = config.point_for("alteration")
-            if not point:
+            if not self._hold_currency("alteration", alt_point):
                 return False
-            self._release_lock()
-            if config.shift_lock:
-                shift_down()
-                self._nap()
-            self._click(*point, "right")
-            if config.shift_lock:
-                self._locked = "alteration"
-            if not self._wait(config.speed_ms):
+            if not self._wait(max(self._pace, 60)):
                 return False
-        alt_down()
-        self._nap()
-        self._click(*item, "left")
-        alt_up()
+        shift_down()
+        try:
+            alt_down()
+            self._nap(0.04)
+            self._click(*item, "left")
+        finally:
+            alt_up()
         return True
 
-    def _release_lock(self) -> None:
+    def _hold_currency(self, action: str, point: tuple[int, int], *, force: bool = False) -> bool:
+        """Pick up `action`. Shift is released only while the cursor is over that stash cell."""
         alt_up()
-        if self._locked is None:
+        if not force and self._cursor_orb == action:
+            shift_down()
+            self._locked = action
+            self._locked_point = point
+            return True
+        move_to(*point)
+        self._nap()
+        shift_up()
+        self._nap()
+        self._click(*point, "right")
+        shift_down()
+        self._locked = action
+        self._cursor_orb = action
+        self._locked_point = point
+        return self._wait(max(self._pace, 50))
+
+    def _park_orb(self) -> None:
+        """Put the cursor orb back. Move to its slot first so Shift is not released over the item."""
+        alt_up()
+        point = self._locked_point if self._cursor_orb else None
+        if point is not None:
+            move_to(*point)
+            self._nap()
+        shift_up()
+        if point is not None:
+            self._nap()
+            self._click(*point, "right")
+            self._nap()
+        self._locked = None
+        self._cursor_orb = None
+        self._locked_point = None
+
+    def _release_lock(self, *, put_back: bool = True) -> None:
+        if put_back:
+            self._park_orb()
             return
+        alt_up()
         shift_up()
         self._locked = None
-        self._nap()
+        self._cursor_orb = None
+        self._locked_point = None
 
     def _escape(self) -> bool:
         if not key_is_down(VK_ESCAPE):
@@ -701,10 +800,27 @@ class CraftRunner:
         self._finish("stopped", self._leave)
         return False
 
+    def _spent_total(self) -> int:
+        return int(sum(self.spent.values()))
+
+    def _note_craft(self, config: AppConfig, before: int) -> bool:
+        if self._spent_total() > before:
+            self._log(config, "CRAFT done")
+            return True
+        self._log(config, "CRAFT skip")
+        return False
+
+    def _spent_line(self) -> str:
+        parts = [f"{name}={count}" for name, count in self.spent.items() if count]
+        return ("SPENT " + " ".join(parts)) if parts else ""
+
     def _finish(self, kind: str, payload: str) -> None:
         dbg(f"finish kind={kind} payload={payload}")
         if self._status in {"stopped", "done", "error"} and kind != "error":
             return
+        spent_line = self._spent_line()
+        if spent_line:
+            self._log(load_config(), spent_line)
         self._status = kind
         self._push_hud(kind)
         self._emit(kind, payload)
@@ -754,6 +870,20 @@ class CraftRunner:
         if item.rarity == "magic":
             prefixes, suffixes = magic_slot_counts(item)
             self._log(config, f"SLOTS prefix={prefixes} suffix={suffixes}")
+
+
+def _prep_done(action: str, item: ParsedItem | None) -> bool:
+    if item is None:
+        return False
+    if action == "scouring":
+        return item.rarity == "normal"
+    if action == "transmutation":
+        return item.rarity == "magic"
+    if action in {"alchemy", "regal"}:
+        return item.rarity == "rare"
+    if action == "wisdom":
+        return item.identified
+    return False
 
 
 def _step_still_holds(item: ParsedItem, step: CraftStep) -> bool:
@@ -828,6 +958,6 @@ def validate_ready(scenario: CraftScenario, config: AppConfig, chain: bool = Fal
         missing.append(step.action_id)
     if missing:
         return "run.need_currency"
-    if any(step.fill_affix() for step in scenario.steps) and not config.point_for("alteration"):
-        return "run.need_augment"
+        if any(step.fill_affix() for step in scenario.steps) and not config.point_for("augmentation"):
+            return "run.need_augment"
     return None

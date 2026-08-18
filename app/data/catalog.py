@@ -9,6 +9,7 @@ from app.data.models import CraftScenario, ModRequirement
 from app.data.static import (
     CRAFT_TYPES,
     ITEM_TYPE_GROUPS,
+    ITEM_TYPE_NAMES,
     ITEM_TYPE_NAMES_RU,
     actions_for_craft_type,
     item_type_label,
@@ -16,7 +17,7 @@ from app.data.static import (
 from app.paths import CATALOG_PATH, SCENARIOS_DIR, ensure_data_dirs
 
 
-CATALOG_SCHEMA = 4
+CATALOG_SCHEMA = 5
 
 
 @dataclass
@@ -261,7 +262,7 @@ def fallback_item_types() -> list[dict[str, Any]]:
             rows.append(
                 {
                     "id": item_class,
-                    "name": item_class,
+                    "name": ITEM_TYPE_NAMES.get(item_class, item_class),
                     "name_ru": ITEM_TYPE_NAMES_RU.get(item_class, item_class),
                     "group": group["id"],
                 }

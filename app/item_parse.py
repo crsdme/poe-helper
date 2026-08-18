@@ -51,6 +51,15 @@ _SKIP_PREFIXES = (
     "note:",
     "flavour",
     "flavor",
+    "this item can be equipped by",
+    "can only be equipped to heist members",
+    "area level:",
+    "уровень области:",
+    "wings revealed:",
+    "крыльев открыто:",
+    "requires ",
+    "требуется ",
+    "requires:",
 )
 
 _MAX = {
@@ -271,7 +280,11 @@ def _finish(current: dict) -> ParsedAffix:
 
 def _should_skip(line: str) -> bool:
     lower = line.lower()
-    return any(lower.startswith(prefix) or lower == prefix.rstrip(":") for prefix in _SKIP_PREFIXES)
+    if any(lower.startswith(prefix) or lower == prefix.rstrip(":") for prefix in _SKIP_PREFIXES):
+        return True
+    if "," in lower and " the " in lower and not _NUM.search(line):
+        return True
+    return False
 
 
 def _guess_generation(item: ParsedItem) -> None:

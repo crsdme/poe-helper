@@ -1,12 +1,12 @@
 {
-  "hotkey": "f11",
-  "exit_hotkey": "f12",
+  "hotkey": "",
+  "exit_hotkey": "",
   "save_logs": true,
   "logs_dir": "heist_logs",
-  "click_delay_sec": 0.1,
-  "open_settle_sec": 0.35,
-  "reveal_settle_sec": 0.28,
-  "between_blueprints_sec": 0.15,
+  "click_delay_sec": 0.05,
+  "open_settle_sec": 0.05,
+  "reveal_settle_sec": 0.05,
+  "between_blueprints_sec": 0.05,
   "max_reveals_per_blueprint": 8,
   "min_area_frac": 0.045,
   "min_side_frac": 0.16,
@@ -17,10 +17,10 @@
     ]
   },
   "map_region": {
-    "x": 300,
-    "y": 70,
-    "w": 1000,
-    "h": 640
+    "x": 291,
+    "y": 63,
+    "w": 1450,
+    "h": 882
   },
   "inventory_grid": {
     "x": 1262,
@@ -44,7 +44,7 @@
   "min_side_px": 120,
   "take_settle_sec": 0.35,
   "max_area_frac": 0.22,
-  "blink_samples": 4,
-  "blink_sample_sec": 0.11,
+  "blink_samples": 2,
+  "blink_sample_sec": 0.08,
   "eye_match_threshold": 0.58
 }

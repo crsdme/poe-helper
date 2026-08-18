@@ -145,13 +145,16 @@ def _apply_defaults(data: dict[str, Any]) -> dict[str, Any]:
     data.setdefault("mode", "assign")
     data.setdefault("pan_if_not_multiple_of_3", True)
     data.setdefault("pan_if_left_panel_covers", True)
-    data.setdefault("pan_drag_px", 180)
+    data.setdefault("pan_drag_px", 80)
     data.setdefault("pan_drag_duration_sec", 0.2)
     data.setdefault("pan_settle_sec", 0.3)
-    data.setdefault("pan_max_attempts", 4)
+    data.setdefault("pan_max_attempts", 3)
     data.setdefault("pan_left_clear_pad_px", 36)
-    if int(data.get("pan_drag_px", 180) or 180) <= 40:
-        data["pan_drag_px"] = 180
+    data.setdefault("pan_right_clear_pad_px", 40)
+    if int(data.get("pan_drag_px", 80) or 80) >= 140:
+        data["pan_drag_px"] = 80
+    if int(data.get("pan_drag_px", 80) or 80) <= 40:
+        data["pan_drag_px"] = 80
     data.setdefault("confirm_plans_after_assign", True)
     data.setdefault("confirm_delay_sec", 0.18)
     data.setdefault("ctrl_click_after_confirm", True)
@@ -1029,15 +1032,16 @@ def copy_item_under_cursor(
     y: int,
     *,
     hover_sec: float = 0.25,
+    settle_sec: float = 0.18,
+    retries: int = 2,
     focus_game: bool = True,
 ) -> str:
-    """РќР°РІРѕРґРёС‚ РјС‹С€СЊ Рё Р¶РјС‘С‚ Ctrl+C вЂ” PoE РєРѕРїРёСЂСѓРµС‚ РѕРїРёСЃР°РЅРёРµ РїСЂРµРґРјРµС‚Р° РІ Р±СѓС„РµСЂ."""
     from app.input_win import move_to
 
     if focus_game:
         focused = focus_game_window()
         if not focused:
-            time.sleep(0.25)
+            time.sleep(0.2)
             focus_game_window()
 
     marker = f"__poe_bp_{time.time_ns()}__"
@@ -1045,53 +1049,90 @@ def copy_item_under_cursor(
     move_to(int(x), int(y))
     if hover_sec > 0:
         time.sleep(hover_sec)
-
-    _press_ctrl_c()
-    time.sleep(0.18)
-    text = _clipboard_get()
-    if _clipboard_copy_failed(text, marker):
-        focus_game_window()
-        time.sleep(0.15)
+    text = ""
+    attempts = max(1, int(retries))
+    for attempt in range(attempts):
+        if attempt:
+            if attempt >= 2:
+                move_to(int(x) + 2, int(y) + 2)
+                time.sleep(max(0.12, hover_sec))
+            focus_game_window()
         _press_ctrl_c()
-        time.sleep(0.2)
+        time.sleep(max(0.08, settle_sec))
         text = _clipboard_get()
-    if _clipboard_copy_failed(text, marker):
-        move_to(int(x) + 2, int(y) + 2)
-        time.sleep(max(0.25, hover_sec))
-        focus_game_window()
-        _press_ctrl_c()
-        time.sleep(0.22)
-        text = _clipboard_get()
+        if not _clipboard_copy_failed(text, marker):
+            return text
     return text
 
 
+def _looks_like_poe_item(text: str) -> bool:
+    low = (text or "").lower()
+    return any(
+        marker in low
+        for marker in (
+            "item class:",
+            "класс предмета:",
+            "itemklasse:",
+            "classe d'objet:",
+            "classe d’objet:",
+            "clase de objeto:",
+            "classe do item:",
+        )
+    )
+
+
 def _clipboard_copy_failed(text: str, marker: str) -> bool:
-    t = (text or "").strip()
-    if not t:
+    blob = (text or "").strip()
+    if not blob:
         return True
-    if t == marker or t.startswith("__poe_bp_"):
+    if blob == marker or blob.startswith("__poe_bp_"):
         return True
-    if "Item Class:" not in t:
-        return True
-    return False
+    return not _looks_like_poe_item(blob)
+
+
+def _item_class_name(text: str) -> str:
+    labels = (
+        "Item Class:",
+        "Класс предмета:",
+        "Itemklasse:",
+        "Classe d'objet:",
+        "Classe d’objet:",
+        "Clase de objeto:",
+        "Classe do item:",
+    )
+    for line in (text or "").splitlines():
+        stripped = line.strip()
+        for label in labels:
+            if stripped.lower().startswith(label.lower()):
+                return stripped.split(":", 1)[-1].strip()
+    return ""
+
+
+def _is_blueprint_class(name: str) -> bool:
+    lowered = (name or "").lower()
+    return any(
+        token in lowered
+        for token in ("blueprint", "чертеж", "чертёж", "baupl", "planos", "plans", "plantas")
+    )
+
+
+_WINGS_RE = re.compile(
+    r"(?:Wings Revealed|Крыльев открыто|Ailes révélées|Flügel aufgedeckt|Alas reveladas)\s*:\s*(\d+)\s*/\s*(\d+)",
+    re.I,
+)
 
 
 def classify_blueprint_clipboard(text: str) -> str:
-    """
-    Р’РѕР·РІСЂР°С‰Р°РµС‚: usable | confirmed | fail | other
-    Confirmed = Wings Revealed X/X (РІСЃРµ РєСЂС‹Р»СЊСЏ СѓР¶Рµ РѕС‚РєСЂС‹С‚С‹).
-    """
+    """usable | confirmed | fail | other"""
     if _clipboard_copy_failed(text, ""):
         return "fail"
-    if "Item Class: Blueprints" not in text:
+    if not _is_blueprint_class(_item_class_name(text)):
         return "other"
-    m = re.search(r"Wings Revealed:\s*(\d+)\s*/\s*(\d+)", text, re.IGNORECASE)
-    if m:
-        revealed, total = int(m.group(1)), int(m.group(2))
+    match = _WINGS_RE.search(text or "")
+    if match:
+        revealed, total = int(match.group(1)), int(match.group(2))
         if total > 0 and revealed >= total:
             return "confirmed"
-        return "usable"
-    # Blueprint Р±РµР· СЃС‚СЂРѕРєРё Wings вЂ” СЃС‡РёС‚Р°РµРј usable (РЅРµ РїРѕРґС‚РІРµСЂР¶РґС‘РЅРЅС‹Р№ РїРѕ X/X)
     return "usable"
 
 
@@ -1779,27 +1820,46 @@ def _contracts_prefer_full_triplets(
     return items
 
 
-def pan_map_drag_right(
+def pan_map_drag(
     region: Region,
     *,
-    drag_px: int = 220,
+    drag_px: int,
     duration: float = 0.25,
 ) -> None:
     """
-    Сдвигает карту влево: зажать ЛКМ и потянуть вправо.
-    Открывает слоты, которые были за левым краем / под Fees.
+    drag_px > 0: тянем вправо — контент едет вправо, открывается левый край (Fees).
+    drag_px < 0: тянем влево — открывается правый край (The Crew).
     """
     from app.input_win import drag
 
+    px = int(drag_px)
+    if abs(px) < 8:
+        return
     left, top, width, height = region
-    # Центр карты, не Fees и не The Crew
     cx = left + width // 2
     cy = top + int(height * 0.42)
-    half = max(40, int(drag_px) // 2)
-    x0, y0 = cx - half, cy
-    x1, y1 = cx + half, cy
+    drag(cx - px // 2, cy, cx + px // 2, cy, duration=max(0.05, float(duration)))
 
-    drag(x0, y0, x1, y1, duration=max(0.05, float(duration)))
+
+def pan_map_drag_right(
+    region: Region,
+    *,
+    drag_px: int = 80,
+    duration: float = 0.25,
+) -> None:
+    """Сдвигает карту так, чтобы открыть слоты под Fees (тянем вправо)."""
+    pan_map_drag(region, drag_px=abs(int(drag_px)), duration=duration)
+
+
+def _column_brightness(image: np.ndarray) -> Any:
+    h, w = image.shape[:2]
+    y0, y1 = int(h * 0.16), int(h * 0.58)
+    if y1 <= y0:
+        return np.zeros(w, dtype=np.float64)
+    gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+    col = gray[y0:y1, :].mean(axis=0)
+    kernel = max(11, w // 50)
+    return np.convolve(col, np.ones(kernel) / kernel, mode="same")
 
 
 def left_panel_right_edge(image: np.ndarray) -> int:
@@ -1821,53 +1881,88 @@ def left_panel_right_edge(image: np.ndarray) -> int:
     return lo + int(np.argmax(smooth[lo:]))
 
 
-def _rooms_hugging_left_panel(image: np.ndarray, edge: int, pad: int) -> bool:
+def right_panel_left_edge(image: np.ndarray) -> int:
+    """Left edge of The Crew / dark right UI, where the parchment ends."""
     h, w = image.shape[:2]
-    x0 = max(0, edge - 8)
-    x1 = min(w, edge + pad + int(0.04 * w))
-    y0 = int(h * 0.12)
-    y1 = int(h * 0.78)
-    if x1 - x0 < 20 or y1 - y0 < 40:
+    smooth = _column_brightness(image)
+    mid0, mid1 = int(w * 0.38), int(w * 0.58)
+    parchment = float(np.median(smooth[mid0:mid1])) if mid1 > mid0 else 100.0
+    threshold = max(48.0, parchment * 0.58)
+    start = int(w * 0.50)
+    tail = max(24, w // 40)
+    for x in range(start, w - 8):
+        if smooth[x] < threshold and float(np.mean(smooth[x : min(w, x + tail)])) < threshold:
+            return x
+    return int(w * 0.84)
+
+
+def _map_empty_after_fees(image: np.ndarray, fees_edge: int) -> bool:
+    """True if the map was panned too far and parchment no longer sits by Fees."""
+    smooth = _column_brightness(image)
+    w = len(smooth)
+    x0 = min(w - 1, max(0, int(fees_edge) + 8))
+    x1 = min(w, x0 + max(40, w // 18))
+    if x1 <= x0:
         return False
-    roi = image[y0:y1, x0:x1]
-    gray = cv2.cvtColor(roi, cv2.COLOR_BGR2GRAY)
-    edges = cv2.Canny(gray, 20, 70)
-    edges = cv2.dilate(edges, np.ones((2, 2), np.uint8), iterations=1)
-    contours, _ = cv2.findContours(edges, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
-    min_side = max(18, int(0.025 * min(h, w)))
-    max_side = max(70, int(0.09 * min(h, w)))
-    for contour in contours:
-        x, y, bw, bh = cv2.boundingRect(contour)
-        if min(bw, bh) < min_side or max(bw, bh) > max_side:
-            continue
-        aspect = bw / float(max(1, bh))
-        if aspect < 0.7 or aspect > 1.4:
-            continue
-        if (x0 + x) < edge - 8:
-            continue
-        return True
-    return False
+    return float(np.median(smooth[x0:x1])) < 35.0
 
 
-def _needs_left_panel_pan(
+def _slot_x_span(contracts: Sequence[ContractHit]) -> tuple[int, int]:
+    leftmost = min(hit.bbox[0] for hit in contracts)
+    rightmost = max(hit.bbox[0] + hit.bbox[2] for hit in contracts)
+    return leftmost, rightmost
+
+
+def _scan_score(hits: Sequence[ContractHit]) -> tuple[int, int]:
+    n = len(hits)
+    return (n - (n % 3), n)
+
+
+def _pan_needed_px(
     frame: np.ndarray,
     contracts: Sequence[ContractHit],
     cfg: dict[str, Any],
-) -> bool:
+) -> int:
+    """
+    Сколько пикселей тащить мышь.
+    Плюс — открыть левый край, минус — вернуть правое крыло из-под The Crew.
+    0 — пан не нужен / он спрячет уже найденные слоты.
+    """
     if not contracts:
-        return False
-    if bool(cfg.get("pan_if_not_multiple_of_3", True)) and len(contracts) % 3 != 0:
-        return True
-    if not bool(cfg.get("pan_if_left_panel_covers", True)):
-        return False
-    w = frame.shape[1]
-    edge = left_panel_right_edge(frame)
-    pad = max(int(cfg.get("pan_left_clear_pad_px", 36)), int(0.02 * w))
-    clear_x = edge + pad
-    leftmost = min(hit.bbox[0] for hit in contracts)
-    if leftmost < clear_x:
-        return True
-    return _rooms_hugging_left_panel(frame, edge, pad)
+        return 0
+    h, w = frame.shape[:2]
+    fees = left_panel_right_edge(frame)
+    crew = right_panel_left_edge(frame)
+    left_pad = max(int(cfg.get("pan_left_clear_pad_px", 36)), int(0.02 * w))
+    right_pad = max(int(cfg.get("pan_right_clear_pad_px", 40)), int(0.02 * w))
+    max_step = min(max(24, int(cfg.get("pan_drag_px", 80))), 90)
+    leftmost, rightmost = _slot_x_span(contracts)
+    need_left = max(0, (fees + left_pad) - leftmost)
+    slack_right = max(0, (crew - right_pad) - rightmost)
+    slack_left = max(0, leftmost - (fees + left_pad))
+    overpan = _map_empty_after_fees(frame, fees)
+    n = len(contracts)
+
+    # Уже есть полные крылья на экране — не рискуем прятать правое.
+    if n >= 9 and n % 3 == 0 and not overpan:
+        return 0
+    if n >= 6 and n % 3 == 0 and not overpan and need_left <= 0:
+        return 0
+
+    if overpan and slack_left > 12:
+        return -min(max_step, slack_left)
+
+    if bool(cfg.get("pan_if_left_panel_covers", True)) and need_left > 8:
+        if slack_right < 16:
+            return 0
+        return min(need_left, slack_right, max_step)
+
+    if bool(cfg.get("pan_if_not_multiple_of_3", True)) and n % 3 != 0:
+        if need_left > 0 and slack_right > 16:
+            return min(max_step, slack_right)
+        if rightmost > crew - right_pad * 2 and slack_left > 16:
+            return -min(max_step, slack_left)
+    return 0
 
 
 def discover_contracts(
@@ -1878,94 +1973,87 @@ def discover_contracts(
     logger: Optional[AssignLogger] = None,
 ) -> tuple[list[ContractHit], np.ndarray, Point]:
     """
-    Ищет контракты. Пан карты влево, если слотов не кратно 3
-    или левая панель (Fees / Whakano) перекрывает ноды.
+    Ищет контракты. Карту двигает только если слоты реально под Fees
+    и справа ещё есть место; если после пана слотов меньше — откатывает.
     """
-    drag_px = int(cfg.get("pan_drag_px", 180))
     drag_dur = float(cfg.get("pan_drag_duration_sec", 0.2))
     settle = float(cfg.get("pan_settle_sec", 0.3))
-    max_attempts = int(cfg.get("pan_max_attempts", 4))
+    max_attempts = int(cfg.get("pan_max_attempts", 3))
 
-    frame, offset = capture_screen(region, sct=sct)
-    local = _contracts_prefer_full_triplets(find_contracts(frame, cfg=cfg, screen_coords=False))
-    contracts = _with_screen_offset(local, offset)
-    before = len(contracts)
+    def _scan() -> tuple[list[ContractHit], np.ndarray, Point, list[ContractHit], list[ContractHit]]:
+        frame, offset = capture_screen(region, sct=sct)
+        empty = _contracts_prefer_full_triplets(
+            find_contracts(frame, cfg=cfg, screen_coords=False)
+        )
+        span_cfg = dict(cfg)
+        span_cfg["skip_assigned_slots"] = False
+        all_slots = _contracts_prefer_full_triplets(
+            find_contracts(frame, cfg=span_cfg, screen_coords=False)
+        )
+        span = all_slots if len(all_slots) >= len(empty) else empty
+        return _with_screen_offset(empty, offset), frame, offset, empty, span
+
+    contracts, frame, offset, local, span = _scan()
+    best = (contracts, frame, offset, local, span)
+    best_score = _scan_score(span)
     if logger is not None:
-        if before != len(contracts):
-            logger.log(
-                f"scan0 drop incomplete groups: {before} -> {len(contracts)} "
-                f"(keep full triplets to avoid pan losing top wings)"
-            )
         logger.log(f"scan0 contracts={len(contracts)} screen={[ (c.x, c.y) for c in contracts ]}")
         if not contracts:
             logger.save_image("00_no_contracts_raw.png", frame)
         else:
             logger.save_image("00_raw.png", frame)
-            # annotate with local coords of kept hits
-            kept_local = [
-                ContractHit(
-                    x=c.x - offset[0],
-                    y=c.y - offset[1],
-                    bbox=(
-                        c.bbox[0] - offset[0],
-                        c.bbox[1] - offset[1],
-                        c.bbox[2],
-                        c.bbox[3],
-                    ),
-                    area=c.area,
-                    score=c.score,
-                    group=c.group,
-                )
-                for c in contracts
-            ]
-            logger.save_image("00_targets.png", logger.annotate_contracts(frame, kept_local))
+            logger.save_image("00_targets.png", logger.annotate_contracts(frame, local))
 
     attempt = 0
-    while _needs_left_panel_pan(frame, local, cfg) and attempt < max_attempts:
+    while attempt < max_attempts:
+        drag_px = _pan_needed_px(frame, span, cfg)
+        if drag_px == 0:
+            break
         attempt += 1
         if logger is not None:
+            side = "right (reveal left)" if drag_px > 0 else "left (reveal right)"
             logger.log(
-                f"left panel covers nodes or count={len(contracts)} "
-                f"-> pan map left (drag right {drag_px}px) "
-                f"attempt {attempt}/{max_attempts}"
+                f"pan {side} {drag_px}px attempt {attempt}/{max_attempts} "
+                f"slots={len(span)} empty={len(local)} score={best_score}"
             )
-        pan_map_drag_right(region, drag_px=drag_px, duration=drag_dur)
+        pan_map_drag(region, drag_px=drag_px, duration=drag_dur)
         if settle > 0:
             time.sleep(settle)
 
-        frame, offset = capture_screen(region, sct=sct)
-        local = _contracts_prefer_full_triplets(find_contracts(frame, cfg=cfg, screen_coords=False))
-        contracts = _with_screen_offset(local, offset)
-        before = len(contracts)
+        contracts, frame, offset, local, span = _scan()
+        score = _scan_score(span)
         if logger is not None:
-            if before != len(contracts):
-                logger.log(f"scan{attempt} drop incomplete: {before} -> {len(contracts)}")
             logger.log(
-                f"scan{attempt} contracts={len(contracts)} "
-                f"screen={[ (c.x, c.y) for c in contracts ]}"
+                f"scan{attempt} contracts={len(contracts)} span={len(span)} "
+                f"score={score} screen={[ (c.x, c.y) for c in contracts ]}"
             )
             logger.save_image(f"00_raw_pan{attempt}.png", frame)
-            kept_local = [
-                ContractHit(
-                    x=c.x - offset[0],
-                    y=c.y - offset[1],
-                    bbox=(
-                        c.bbox[0] - offset[0],
-                        c.bbox[1] - offset[1],
-                        c.bbox[2],
-                        c.bbox[3],
-                    ),
-                    area=c.area,
-                    score=c.score,
-                    group=c.group,
-                )
-                for c in contracts
-            ]
             logger.save_image(
                 f"00_targets_pan{attempt}.png",
-                logger.annotate_contracts(frame, kept_local),
+                logger.annotate_contracts(frame, local),
             )
+        if score > best_score:
+            best = (contracts, frame, offset, local, span)
+            best_score = score
+            continue
+        if score < best_score:
+            if logger is not None:
+                logger.log(
+                    f"pan lost slots {score} < {best_score} -> undo {-drag_px}px"
+                )
+            pan_map_drag(region, drag_px=-drag_px, duration=drag_dur)
+            if settle > 0:
+                time.sleep(settle)
+            contracts, frame, offset, local, span = _scan()
+            if logger is not None:
+                logger.log(
+                    f"scan{attempt}b after undo contracts={len(contracts)} "
+                    f"screen={[ (c.x, c.y) for c in contracts ]}"
+                )
+            break
+        best = (contracts, frame, offset, local, span)
 
+    contracts, frame, offset, local, span = best
     return contracts, frame, offset
 
 

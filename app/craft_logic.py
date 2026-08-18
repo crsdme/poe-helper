@@ -73,6 +73,11 @@ def matched_requirements(item: ParsedItem, condition: Condition) -> set[str]:
     return found
 
 
+def matched_mod_names(item: ParsedItem, condition: Condition) -> list[str]:
+    present = matched_requirements(item, condition)
+    return [req.name for req in condition.mods if req.mod_type_id in present]
+
+
 def condition_holds(item: ParsedItem, condition: Condition) -> bool:
     return condition_report(item, condition)[0]
 
