@@ -347,14 +347,14 @@ STRINGS: dict[str, dict[str, str]] = {
         "ko": "청사진 공개",
     },
     "reveal.hint": {
-        "en": "Ctrl+click each inventory cell like Chain, click only the large red wing fields with an eye in the centre, then Shift+click the blueprint under the map and take the next one.",
-        "ru": "Ctrl+клик по каждой клетке инвентаря как у Chain, клик только по большим красным полям с глазом в центре, затем Shift+клик по блюпринту под картой и следующий.",
-        "de": "Ctrl-Klick auf jede Inventarzelle wie bei Chain, nur große rote Flügel mit Auge in der Mitte, dann Shift-Klick auf den Blueprint unter der Karte.",
-        "fr": "Ctrl-clic sur chaque case d’inventaire comme Chain, clic seulement sur les grandes ailes rouges avec un œil, puis Shift-clic sur le blueprint sous la carte.",
-        "es": "Ctrl+clic en cada celda como Chain, solo en los campos rojos grandes con ojo, luego Shift+clic en el blueprint bajo el mapa.",
-        "pt": "Ctrl+clique em cada célula como o Chain, só nos campos vermelhos grandes com olho, depois Shift+clique no blueprint debaixo do mapa.",
-        "zh": "像 Chain 一样 Ctrl+点击每个背包格，只点中央有眼睛的大红翼，然后 Shift+点击地图下方的蓝图并取下一张。",
-        "ko": "Chain처럼 인벤토리 칸을 Ctrl+클릭하고, 가운데 눈이 있는 큰 빨간 날개만 클릭한 뒤 지도 아래 청사진을 Shift+클릭하고 다음으로 갑니다.",
+        "en": "Ctrl+click each inventory cell like Chain, click only the large red wing fields with an eye in the centre, then Ctrl+click the blueprint under the map and take the next one.",
+        "ru": "Ctrl+клик по каждой клетке инвентаря как у Chain, клик только по большим красным полям с глазом в центре, затем Ctrl+клик по блюпринту под картой и следующий.",
+        "de": "Ctrl-Klick auf jede Inventarzelle wie bei Chain, nur große rote Flügel mit Auge in der Mitte, dann Ctrl-Klick auf den Blueprint unter der Karte.",
+        "fr": "Ctrl-clic sur chaque case d’inventaire comme Chain, clic seulement sur les grandes ailes rouges avec un œil, puis Ctrl-clic sur le blueprint sous la carte.",
+        "es": "Ctrl+clic en cada celda como Chain, solo en los campos rojos grandes con ojo, luego Ctrl+clic en el blueprint bajo el mapa.",
+        "pt": "Ctrl+clique em cada célula como o Chain, só nos campos vermelhos grandes com olho, depois Ctrl+clique no blueprint debaixo do mapa.",
+        "zh": "像 Chain 一样 Ctrl+点击每个背包格，只点中央有眼睛的大红翼，然后 Ctrl+点击地图下方的蓝图并取下一张。",
+        "ko": "Chain처럼 인벤토리 칸을 Ctrl+클릭하고, 가운데 눈이 있는 큰 빨간 날개만 클릭한 뒤 지도 아래 청사진을 Ctrl+클릭하고 다음으로 갑니다.",
     },
     "reveal.map": {"en": "Map area", "ru": "Область карты"},
     "reveal.map_hint": {
@@ -368,8 +368,8 @@ STRINGS: dict[str, dict[str, str]] = {
     "reveal.map_set": {"en": "Map area saved", "ru": "Область карты сохранена"},
     "reveal.slot": {"en": "Blueprint under the map", "ru": "Блюпринт под картой"},
     "reveal.slot_help": {
-        "en": "The item slot under the map. After reveals the run Shift+clicks it, then opens the next inventory cell.",
-        "ru": "Слот предмета под картой. После ревила Shift+клик сюда, потом следующая клетка инвентаря.",
+        "en": "The item slot under the map. After reveals the run Ctrl+clicks it, then opens the next inventory cell.",
+        "ru": "Слот предмета под картой. После ревила Ctrl+клик сюда, потом следующая клетка инвентаря.",
     },
     "reveal.inventory_hint": {
         "en": "Same grid as Chain. Each red dot is Ctrl+clicked in order.",

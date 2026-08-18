@@ -62,6 +62,7 @@ def _apply_defaults(data: dict[str, Any]) -> dict[str, Any]:
     data.setdefault("blink_sample_sec", 0.08)
     data.setdefault("eye_match_threshold", 0.58)
     data.setdefault("take_settle_sec", 0.35)
+    data.setdefault("take_retries", 3)
     data.setdefault("ui_points", {})
     data.setdefault(
         "map_region",
@@ -117,14 +118,6 @@ def slot_point(cfg: dict[str, Any]) -> tuple[int, int] | None:
     if isinstance(pt, (list, tuple)) and len(pt) == 2:
         return int(pt[0]), int(pt[1])
     return None
-
-
-def shift_click_screen(x: int, y: int, *, delay: float = 0.0) -> None:
-    from app.input_win import shift_click
-
-    shift_click(int(x), int(y), pause_ms=25)
-    if delay > 0:
-        time.sleep(delay)
 
 
 @dataclass(frozen=True)
@@ -326,28 +319,14 @@ def _capture_map(cfg: dict[str, Any], sct):
     return capture_screen((region.x, region.y, region.w, region.h), sct=sct)
 
 
-def _find_slot_item(cfg: dict[str, Any], sct) -> tuple[int, int] | None:
+def _match_blueprint_icon(frame, offset: tuple[int, int], *, threshold: float = 0.60) -> tuple[int, int] | None:
     from app.heist.engine import templates_dir
 
-    if cv2 is None:
+    if cv2 is None or frame is None or getattr(frame, "size", 0) == 0:
         return None
-    mapped = slot_point(cfg)
-    region = map_rect(cfg)
-    left = max(0, region.x)
-    top = max(0, region.y + region.h - 80)
-    width = max(80, region.w)
-    height = 360
-    if mapped is not None:
-        left = max(0, min(left, mapped[0] - 80))
-        top = max(0, min(top, mapped[1] - 60))
-        right = max(left + width, mapped[0] + 80)
-        bottom = max(top + height, mapped[1] + 60)
-        width = right - left
-        height = bottom - top
-    frame, offset = capture_screen((left, top, width, height), sct=sct)
     tpl_path = templates_dir() / "blueprint_item.png"
     if not tpl_path.is_file():
-        found = find_blueprint_item(frame, offset=(0, 0))
+        found = find_blueprint_item(frame, offset=(0, 0), threshold=threshold)
         if found is None:
             return None
         return found[0] + offset[0], found[1] + offset[1]
@@ -362,34 +341,68 @@ def _find_slot_item(cfg: dict[str, Any], sct) -> tuple[int, int] | None:
         return None
     res = cv2.matchTemplate(frame, tpl, cv2.TM_CCOEFF_NORMED)
     _min_v, max_v, _min_l, max_l = cv2.minMaxLoc(res)
-    if max_v < 0.58:
+    if float(max_v) < threshold:
         return None
     return offset[0] + max_l[0] + tw // 2, offset[1] + max_l[1] + th // 2
 
 
+def _find_slot_item(cfg: dict[str, Any], sct) -> tuple[int, int] | None:
+    mapped = slot_point(cfg)
+    if mapped is not None:
+        pad = 72
+        left = max(0, mapped[0] - pad)
+        top = max(0, mapped[1] - pad)
+        frame, offset = capture_screen((left, top, pad * 2, pad * 2), sct=sct)
+        found = _match_blueprint_icon(frame, offset)
+        if found is not None:
+            return found
+        return None
+    region = map_rect(cfg)
+    left = max(0, region.x)
+    top = max(0, region.y + region.h - 80)
+    frame, offset = capture_screen((left, top, max(80, region.w), 360), sct=sct)
+    return _match_blueprint_icon(frame, offset, threshold=0.58)
+
+
+def _slot_click_point(cfg: dict[str, Any], sct) -> tuple[int, int] | None:
+    mapped = slot_point(cfg)
+    found = _find_slot_item(cfg, sct)
+    if found is not None and mapped is not None:
+        dx = found[0] - mapped[0]
+        dy = found[1] - mapped[1]
+        if dx * dx + dy * dy <= 140 * 140:
+            return found
+    return found or mapped
+
+
+def _slot_still_has_blueprint(_cfg: dict[str, Any], _sct, xy: tuple[int, int]) -> bool:
+    kind, _label = _peek_cell(xy[0], xy[1])
+    return kind in {"usable", "confirmed"}
+
+
 def _take_blueprint_back(cfg: dict[str, Any], sct, logger: AssignLogger, delay: float) -> bool:
+    """Ctrl+click the NPC slot — same as placing the BP, inverse direction."""
     from app.heist.engine import focus_game_window
 
     focus_game_window()
-    mapped = slot_point(cfg)
-    slot = mapped or _find_slot_item(cfg, sct)
+    settle = max(0.25, float(cfg.get("take_settle_sec", 0.35)))
+    retries = max(1, int(cfg.get("take_retries", 3)))
+    slot = _slot_click_point(cfg, sct)
     if slot is None:
-        logger.log("blueprint slot not found — Shift+click skipped")
+        logger.log("blueprint slot not found — Ctrl+click skipped")
         return False
-    logger.log(f"SHIFT+click blueprint ({slot[0]},{slot[1]})")
-    shift_click_screen(slot[0], slot[1], delay=delay)
-    settle = min(0.22, float(cfg.get("take_settle_sec", 0.35)))
-    if settle > 0:
-        time.sleep(settle)
-    if mapped is not None:
-        return True
-    still = _find_slot_item(cfg, sct)
-    if still is None:
-        return True
-    logger.log("slot still occupied — Shift+click retry")
-    shift_click_screen(still[0], still[1], delay=delay)
-    time.sleep(max(0.15, settle))
-    return _find_slot_item(cfg, sct) is None
+    for attempt in range(1, retries + 1):
+        logger.log(f"CTRL+click blueprint ({slot[0]},{slot[1]}) try {attempt}/{retries}")
+        ctrl_click_screen(slot[0], slot[1], delay=delay)
+        if settle > 0:
+            time.sleep(settle)
+        if not _slot_still_has_blueprint(cfg, sct, slot):
+            return True
+        found = _find_slot_item(cfg, sct)
+        if found is not None:
+            slot = found
+        logger.log("slot still occupied — retry")
+    return not _slot_still_has_blueprint(cfg, sct, slot)
 
 
 def _scan_wings(cfg: dict[str, Any], sct) -> list[WingHit]:
@@ -520,6 +533,8 @@ def reveal_blueprints(
                     revealed = reveal_one_blueprint(cfg, sct=sct, logger=logger, stop_event=stop_event)
                 logger.log(f"wings revealed={revealed}")
                 total += revealed
+                if not _sleep(max(0.18, float(cfg.get("take_settle_sec", 0.35)) * 0.5), stop_event):
+                    break
                 taken = _take_blueprint_back(cfg, sct, logger, delay)
                 logger.log("blueprint returned to inventory" if taken else "could not return blueprint")
                 if not taken:

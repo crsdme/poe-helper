@@ -125,8 +125,12 @@ def _apply_defaults(data: dict[str, Any]) -> dict[str, Any]:
     data.setdefault("verbose_logs", False)
     data.setdefault("logs_dir", "heist_logs")
     data.setdefault("skip_assigned_slots", True)
-    data.setdefault("assigned_min_face_std", 52.0)
+    data.setdefault("assigned_min_face_std", 58.0)
     data.setdefault("assigned_max_parch_frac", 0.70)
+    data.setdefault("clipped_top_min_aspect", 0.70)
+    data.setdefault("clipped_top_max_y", 170)
+    data.setdefault("clipped_top_min_width", 48)
+    data.setdefault("clipped_top_max_width", 78)
     data.setdefault("parchment_lower", [10, 25, 140])
     data.setdefault("parchment_upper", [35, 120, 255])
     data.setdefault("min_area", 200)
@@ -705,7 +709,7 @@ def slot_looks_assigned(
     hit: ContractHit,
     *,
     offset: Point = (0, 0),
-    min_face_std: float = 52.0,
+    min_face_std: float = 58.0,
     max_parch_frac: float = 0.70,
 ) -> bool:
     """
@@ -721,7 +725,7 @@ def filter_empty_job_slots(
     hits: Sequence[ContractHit],
     *,
     offset: Point = (0, 0),
-    min_face_std: float = 52.0,
+    min_face_std: float = 58.0,
     max_parch_frac: float = 0.70,
 ) -> list[ContractHit]:
     """РћСЃС‚Р°РІР»СЏРµС‚ С‚РѕР»СЊРєРѕ РЅРµР·Р°РїРѕР»РЅРµРЅРЅС‹Рµ СЃР»РѕС‚С‹ (РёРєРѕРЅРєР° РЅР°РІС‹РєР°, Р±РµР· rogue)."""
@@ -736,6 +740,23 @@ def filter_empty_job_slots(
             max_parch_frac=max_parch_frac,
         )
     ]
+
+
+def _is_clipped_top_job_slot(hit: ContractHit, cfg: dict[str, Any]) -> bool:
+    """
+    Шапка BLUEPRINT перекрывает верх карточки — blob шире, чем выше.
+    Обычный min_aspect 1.05 / frame_min_aspect 1.15 такие слоты выкидывает.
+    """
+    _x, _y, bw, bh = hit.bbox
+    if bw <= 0:
+        return False
+    aspect = bh / float(bw)
+    max_y = int(cfg.get("clipped_top_max_y", 170))
+    min_w = int(cfg.get("clipped_top_min_width", 48))
+    max_w = int(cfg.get("clipped_top_max_width", 78))
+    min_a = float(cfg.get("clipped_top_min_aspect", 0.70))
+    max_a = float(cfg.get("frame_min_aspect", 1.15))
+    return hit.y <= max_y and min_w <= bw <= max_w and min_a <= aspect < max_a
 
 
 def find_contracts(
@@ -770,7 +791,10 @@ def find_contracts(
         max_width=int(cfg["max_width"]),
         min_height=int(cfg["min_height"]),
         max_height=int(cfg["max_height"]),
-        min_aspect=float(cfg["min_aspect"]),
+        min_aspect=min(
+            float(cfg["min_aspect"]),
+            float(cfg.get("clipped_top_min_aspect", 0.70)),
+        ),
         max_aspect=float(cfg["max_aspect"]),
         require_triplets=bool(cfg.get("require_triplets", True)),
         offset=(ox, oy),
@@ -790,7 +814,10 @@ def find_contracts(
         _x, _y, bw, bh = hit.bbox
         if bw <= 0:
             continue
-        if bh / float(bw) < float(cfg.get("frame_min_aspect", 1.15)):
+        aspect = bh / float(bw)
+        if aspect < float(cfg.get("frame_min_aspect", 1.15)) and not _is_clipped_top_job_slot(
+            hit, cfg
+        ):
             continue
         if _hit_in_inventory(hit, cfg):
             continue
@@ -804,7 +831,7 @@ def find_contracts(
             frame,
             filtered,
             offset=(ox, oy),
-            min_face_std=float(cfg.get("assigned_min_face_std", 52.0)),
+            min_face_std=float(cfg.get("assigned_min_face_std", 58.0)),
             max_parch_frac=float(cfg.get("assigned_max_parch_frac", 0.70)),
         )
 
@@ -1943,8 +1970,9 @@ def _pan_needed_px(
     overpan = _map_empty_after_fees(frame, fees)
     n = len(contracts)
 
-    # Уже есть полные крылья на экране — не рискуем прятать правое.
-    if n >= 9 and n % 3 == 0 and not overpan:
+    # Полные крылья на экране — не прячем правое, но Fees всё ещё может
+    # перекрывать левые слоты: тогда пан обязателен, иначе клик попадёт в панель.
+    if n >= 9 and n % 3 == 0 and not overpan and need_left <= 8:
         return 0
     if n >= 6 and n % 3 == 0 and not overpan and need_left <= 0:
         return 0
